@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla and MikeF" version="0.3.3" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla and MikeF" version="0.4" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
@@ -115,7 +115,7 @@ class BasePlugin:
             self.counter = 1
             d = self.GetDevices()
             Domoticz.Debug('Getting Temperatures')
-            thermostat = self.GetThermostat(d)
+            thermostat = self.GetThermostat(d, 'Heating')
             if thermostat:
                 # get the temperature and heating states
                 temp = thermostat["attributes"]["temperature"]["reportedValue"]
@@ -178,6 +178,40 @@ class BasePlugin:
                 if foundThermostatDevice == False:
                     Domoticz.Device(Name = 'Thermostat', Unit = self.GetNextUnit(False), Type = 242, Subtype = 1, DeviceID = thermostat['id']).Create()
                     self.counter = self.multiplier
+            else:
+                 Domoticz.Debug('No heating thermostat found')
+
+            thermostatW = self.GetThermostat(d, 'HotWater')
+            if thermostatW: # HotWater too...
+                hotwater = thermostatW["attributes"]["stateHotWaterRelay"]["reportedValue"]
+                Domoticz.Debug('Updating Devices')
+                for unit in Devices:
+                    if Devices[unit].DeviceID == "Hive_HotWater":
+                        foundHotWaterDevice = True
+                        if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                            if self.TimedOutAvailable:
+                                if Devices[unit].TimedOut == 0:
+                                    Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1)
+                            else:
+                                Domoticz.Log("Device Offline : " + Devices[unit].Name)
+                        else:
+                            if hotwater == 'ON':
+                                if Devices[unit].nValue == 0:
+                                    if self.TimedOutAvailable:
+                                        Devices[unit].Update(nValue=1, sValue='On', TimedOut=0)
+                                    else:
+                                        Devices[unit].Update(nValue=1, sValue='On')
+                            else:
+                                if Devices[unit].nValue == 1:
+                                    if self.TimedOutAvailable:
+                                        Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0)
+                                    else:
+                                        Devices[unit].Update(nValue=0, sValue='Off')
+                if foundHotWaterDevice == False:
+                    Domoticz.Device(Name = 'HotWater', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID ='Hive_HotWater').Create()
+                    self.counter = self.multiplier
+            else:
+                 Domoticz.Debug('No hot water thermostat found')
 
             lights = self.GetLights(d)
             if lights:
@@ -288,20 +322,15 @@ class BasePlugin:
                 Domoticz.Log(str(e))
             return nodes
 
-    def GetThermostat(self, d):
+    def GetThermostat(self, d, ttype):
+        #ttype can be 'Heating' or 'HotWater'
+        thermostat = False
+        k = 'state'+ttype+'Relay'
         x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostat.json#')
         if x:
-            k = 'stateHeatingRelay'
-            if k in x[0]['attributes']:
-                thermostat = x[0]
-            elif k in x[1]['attributes']:
-                thermostat = x[1]
-            elif k in x[2]['attributes']:
-                thermostat = x[2]
-            else:
-                thermostat = False
-        else:
-            thermostat = False
+            for i in x:
+                if k in i['attributes']:
+                    thermostat = i
         return thermostat
 
     def GetThermostatUI(self, d):
