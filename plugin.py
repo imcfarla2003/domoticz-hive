@@ -1,9 +1,9 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla and MikeF" version="0.3.2" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://my.hivehome.com/login/">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla and MikeF" version="0.3.3" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
-        <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="6"/>
+        <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="1"/>
         <param field="Mode2" label="Domoticz Port - only needed prior to version 3.8791" width="40px" required="false" default="8080"/>
         <param field="Mode6" label="Debug" width="75px">
             <options>
