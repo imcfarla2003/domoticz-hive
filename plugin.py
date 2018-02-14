@@ -110,6 +110,7 @@ class BasePlugin:
             foundTargetDevice = False
             foundHeatingDevice = False
             foundThermostatDevice = False
+            foundHotWaterDevice = False
 
             Domoticz.Debug('Getting Data')
             self.counter = 1
