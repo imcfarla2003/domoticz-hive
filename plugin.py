@@ -85,7 +85,11 @@ class BasePlugin:
         elif self.isThermostat(Unit):
             payload = self.CreateThermostatPayload(Level)
         elif self.isActivePlug(Unit):
-            payload = self.CreateActivePlugPayload(Level)
+            Domoticz.Log("Setting ActivePlug State")
+            if str(Command) == "On":
+                payload = self.CreateActivePlugPayload("ON")
+            if str (Command) == "Off":
+                payload = self.CreateActivePlugPayload("OFF") 
         else:
             payload = ""
             Domoticz.Log("Unknown Device Type")
@@ -353,11 +357,11 @@ class BasePlugin:
         return lights
 
     def GetActivePlugs(self, d):
-        plugs = False
+        activeplugs = False
         x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
         if x:
-            lights = x
-        return plugs
+            activeplugs = x
+        return activeplugs
 
     def GetNextUnit(self, unit):
         if not unit:
