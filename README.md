@@ -15,5 +15,6 @@ I started off with 6 (60s) as the default but now I have added in light control 
 
 Note:
 Only works for Active Light Dimmable as I haven't got any Cool to Warm or Colour Changing
-ActivePlug should work but again I haven't got any so I can't test.
+
+ActivePlug is now working.
 
