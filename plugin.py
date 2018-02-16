@@ -321,6 +321,8 @@ class BasePlugin:
                     r = urlopen(req).read().decode('utf-8')
                 else:
                     Domoticz.Log(str(e))
+            except Exception as e:
+                Domoticz.Log(str(e))
             try:
                 nodes = json.loads(r)['nodes']
             except Exception as e:
