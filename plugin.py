@@ -27,6 +27,8 @@ class BasePlugin:
         self.counter = 0
         self.multiplier = 10
         self.lightsSet = set()
+        self.activeplugsSet = set()
+        self.hwrelaySet = set()
         self.TimedOutAvailable = False
     
     def onStart(self):
@@ -83,13 +85,20 @@ class BasePlugin:
             if str(Command) == "Off":
                 payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
         elif self.isThermostat(Unit):
+            Domoticz.Log("Setting Thermostat Level")
             payload = self.CreateThermostatPayload(Level)
         elif self.isActivePlug(Unit):
             Domoticz.Log("Setting ActivePlug State")
             if str(Command) == "On":
                 payload = self.CreateActivePlugPayload("ON")
             if str (Command) == "Off":
-                payload = self.CreateActivePlugPayload("OFF") 
+                payload = self.CreateActivePlugPayload("OFF")
+        elif self.isHotWaterRelay(Unit):
+            Domoticz.Log("Setting Hot Water Relay State")
+            if str(Command) == "On":
+                payload = self.CreateHotWaterPayload("HEAT") # Android APP Shows as On
+            if str(Command) == "Off":
+                payload = self.CreateHotWaterPayload("OFF") # Android APP shows as Off
         else:
             payload = ""
             Domoticz.Log("Unknown Device Type")
@@ -137,6 +146,7 @@ class BasePlugin:
                 Domoticz.Debug('Battery = ' + str(thermostat_battery))
                 thermostat_rssi = 12*((0 - thermostatui["attributes"]["RSSI"]["reportedValue"])/100)
                 Domoticz.Debug('RSSI = ' + str(thermostat_rssi))
+				
                 # Loop through the devices and update temperatures
                 Domoticz.Debug('Updating Devices')
                 for unit in Devices:
@@ -189,9 +199,11 @@ class BasePlugin:
             thermostatW = self.GetThermostat(d, 'HotWater')
             if thermostatW: # HotWater too...
                 hotwater = thermostatW["attributes"]["stateHotWaterRelay"]["reportedValue"]
-                Domoticz.Debug('Updating Devices')
+                hw_id = thermostatW["id"]
                 for unit in Devices:
-                    if Devices[unit].DeviceID == "Hive_HotWater":
+                    if Devices[unit].DeviceID == hw_id:
+                        if unit not in set(self.hwrelaySet):
+                            self.hwrelaySet.add(unit)
                         foundHotWaterDevice = True
                         if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
                             if self.TimedOutAvailable:
@@ -213,10 +225,10 @@ class BasePlugin:
                                     else:
                                         Devices[unit].Update(nValue=0, sValue='Off')
                 if foundHotWaterDevice == False:
-                    Domoticz.Device(Name = 'HotWater', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID ='Hive_HotWater').Create()
+                    Domoticz.Device(Name = 'HotWater - Relay', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = hw_id).Create()
                     self.counter = self.multiplier
             else:
-                 Domoticz.Debug('No hot water thermostat found')
+                 Domoticz.Debug('No hot water thermostat/relay found')
 
             lights = self.GetLights(d)
             if lights:
@@ -259,12 +271,15 @@ class BasePlugin:
                             Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                         else: 
                             Devices[newUnit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
+
             activeplugs = self.GetActivePlugs(d)
             if activeplugs:
                 for node in activeplugs:
                     for unit in Devices:
                         rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
                         if node['id'] == Devices[unit].DeviceID:
+                            if unit not in set(self.activeplugsSet):
+                                self.activeplugsSet.add(unit)
                             if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
                                 if self.TimedOutAvailable:
                                     if Devices[unit].TimedOut == 0:
@@ -408,7 +423,21 @@ class BasePlugin:
         nodes.append(attributes)
         response["nodes"] = nodes
         return response
-    
+
+    def CreateHotWaterPayload(self, State):
+        response = {}
+        nodes = []
+        attributes = {}
+        if State == "HEAT":
+            Domoticz.Debug('HW On')
+            attributes["attributes"] = {"activeHeatCoolMode": {"targetValue": "HEAT"},"activeScheduleLock": {"targetValue": "True"}}
+        if State == "OFF":
+            Domoticz.Debug('HW Off')
+            attributes["attributes"] = {"activeHeatCoolMode": {"targetValue": "OFF"},"activeScheduleLock": {"targetValue": "False"}}
+        nodes.append(attributes)
+        response["nodes"] = nodes
+        return response
+
     def isLight(self, Unit):
         Domoticz.Debug(str(self.lightsSet))
         if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.lightsSet:
@@ -423,7 +452,15 @@ class BasePlugin:
             return False
 
     def isActivePlug(self, Unit):
-        if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit not in self.lightsSet and Devices[Unit].DeviceID != "Hive_Heating":
+        Domoticz.Debug(str(self.activeplugsSet))
+        if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.activeplugsSet:
+            return True
+        else:
+            return False
+
+    def isHotWaterRelay(self, Unit):
+        Domoticz.Debug(str(self.hwrelaySet))
+        if Unit in self.hwrelaySet:
             return True
         else:
             return False
