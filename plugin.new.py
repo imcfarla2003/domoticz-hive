@@ -50,7 +50,8 @@ class BasePlugin:
         self.httpConn.Connect() # Get a SessionId
         self.deviceConn = Domoticz.Connection(Name="Hive Devices", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
         self.deviceUpdateConn = Domoticz.Connection(Name="Hive Device Update", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
-
+        self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
+ 
     def onStop(self):
         Domoticz.Log('Deleting Session')
         return
@@ -80,9 +81,10 @@ class BasePlugin:
                 'X-AlertMe-Client': 'swagger', 'X-Omnia-Access-Token': self.sessionId, 'Host':self.deviceHost}
             Connection.Send({'Verb':'GET','URL':url,'Headers':headers})
         if (Connection.Name == 'Hive Device Update'):
-            if (self.deviceUpdate != False):
+            while (self.deviceUpdate.get_size() > 0):
                 Domoticz.Debug('Updating Device')
-                self.updateDevice(self.deviceUpdate['Unit'],self.deviceUpdate['Command'],self.deviceUpdate['Level'],self.deviceUpdate['Hue'], Connection)
+                deviceUpdate = self.deviceUpdate.pop_element()
+                self.updateDevice(deviceUpdate['Unit'],deviceUpdate['Command'],deviceUpdate['Level'],deviceUpdate['Hue'], Connection)
  
     def onMessage(self, Connection, Data):
         Domoticz.Debug('onMessage called for ' + Connection.Name)
@@ -104,16 +106,20 @@ class BasePlugin:
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
             if (Data['Status'] == '200'):
-                self.deviceUpdate = False
-                self.deviceUpdateConn.Disconnect()
+                #if(self.deviceUpdate.get_size==0):
+                    #self.deviceUpdateConn.Disconnect()
                 self.deviceConn.Connect() # Update the devices now
             else:
                 Domoticz.Error("Update Device Failed")
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-        self.deviceUpdate = {'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue}
-        self.deviceUpdateConn.Connect()
+        if(self.deviceUpdateConn.Connected()):
+            self.updateDevice(Unit,Command,Level,Hue,self.deviceUpdateConn)
+        else:
+            self.deviceUpdate.push_element({'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue})
+            if(self.deviceUpdateConn.Connecting() == False):
+                self.deviceUpdateConn.Connect()
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Debug('Notification: ' + Name + ',' + Subject + ',' + Text + ',' + Status + ',' + str(Priority) + ',' + Sound + ',' + ImageFile)
@@ -565,4 +571,43 @@ def merge_dicts(*dict_args):
         result.update(dictionary)
     return result
 
+class Buffer:
+    def __init__(self, capacity):
+        self.buffer = [0] * capacity
+        self.size = 0
+        self.capacity = capacity
+        self.head_index = 0
+        self.tail_index = 0
+
+    def push_element(self, value):
+        if self.size == self.capacity:
+            raise Exception('The buffer is full.')
+        self.buffer[self.tail_index] = value
+        self.tail_index = (self.tail_index + 1) % self.capacity
+        self.size += 1
+        Domoticz.Log("Buffer Size: "+str(self.size))
+    
+    def pop_element(self):
+        if self.size == 0:
+            raise Exception('Popping from an empty buffer.')
+        ret = self.buffer[self.head_index]
+        self.head_index = (self.head_index + 1) % self.capacity
+        self.size -= 1
+        Domoticz.Log("Buffer Size: "+str(self.size))
+        return ret
+
+    def peek_head(self):
+        if self.size == 0:
+            raise Exception('Peeking into an empty buffer.')
+        return self.buffer[self.head_index]
+
+    def peek_tail(self):
+        if self.size == 0:
+            raise Exception('Peeking into an empty buffer.')
+        return self.buffer[self.tail_index]
+
+    def get_size(self):
+        return self.size
+
 # vim: tabstop=4 expandtab
+
