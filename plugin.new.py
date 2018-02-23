@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla and MikeF" version="0.1" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla and MikeF" version="0.2" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
@@ -173,8 +173,10 @@ class BasePlugin:
                 if Devices[unit].DeviceID == "Hive_Target":
                     Devices[unit].Update(nValue=int(targetTemp), sValue=str(targetTemp))
                     foundTargetDevice = True
-                if Devices[unit].DeviceID == "Hive_Heating":
+                if Devices[unit].DeviceID == ch_id and Devices[unit].Type == 244:	#if CH Switch device
                     foundHeatingDevice = True
+                    if unit not in set(self.chrelaySet):
+                        self.chrelaySet.add(unit)
                     if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
                         if self.TimedOutAvailable:
                             if Devices[unit].TimedOut == 0:
@@ -366,7 +368,7 @@ class BasePlugin:
                 payload = self.CreateCentralHeatingPayload("HEAT") # Android APP Shows as Manual (Governed by Thermostat setting)
             if str(Command) == "Off":
                 payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
-         else:
+        else:
             payload = ""
             Domoticz.Log("Unknown Device Type")
         if payload != "":
