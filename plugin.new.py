@@ -27,6 +27,7 @@ class BasePlugin:
         self.lightsSet = set()
         self.activeplugsSet = set()
         self.hwrelaySet = set()
+        self.chrelaySet = set()
         self.TimedOutAvailable = False
         self.httpConn = False
         self.deviceConn = False
@@ -148,6 +149,7 @@ class BasePlugin:
         thermostat = self.GetThermostat(d, 'Heating')
         if thermostat:
             # get the temperature and heating states
+            ch_id = thermostat["id"]	# Central Heating ID is same as Thermostat ID
             temp = thermostat["attributes"]["temperature"]["reportedValue"]
             Domoticz.Debug('Temp = ' + str(temp))
             targetTemp = thermostat["attributes"]["targetHeatTemperature"]["reportedValue"]
@@ -203,7 +205,7 @@ class BasePlugin:
                 Domoticz.Device(Name = 'Target', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Target').Create()
                 self.counter = self.multiplier
             if foundHeatingDevice == False:
-                Domoticz.Device(Name = 'Heating', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID ='Hive_Heating').Create()
+                Domoticz.Device(Name = 'Heating', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = ch_id).Create()
                 self.counter = self.multiplier
             if foundThermostatDevice == False:
                 Domoticz.Device(Name = 'Thermostat', Unit = self.GetNextUnit(False), Type = 242, Subtype = 1, DeviceID = thermostat['id']).Create()
@@ -358,7 +360,13 @@ class BasePlugin:
                 payload = self.CreateHotWaterPayload("HEAT") # Android APP Shows as On
             if str(Command) == "Off":
                 payload = self.CreateHotWaterPayload("OFF") # Android APP shows as Off
-        else:
+        elif self.isCentralHeatingRelay(Unit):
+            Domoticz.Log("Setting Central Heating Relay State")
+            if str(Command) == "On":
+                payload = self.CreateCentralHeatingPayload("HEAT") # Android APP Shows as Manual (Governed by Thermostat setting)
+            if str(Command) == "Off":
+                payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
+         else:
             payload = ""
             Domoticz.Log("Unknown Device Type")
         if payload != "":
@@ -458,7 +466,21 @@ class BasePlugin:
         nodes.append(attributes)
         response["nodes"] = nodes
         return response
-    
+
+    def CreateCentralHeatingPayload(self, State):
+        response = {}
+        nodes = []
+        attributes = {}
+        if State == "HEAT":
+            Domoticz.Debug('CH On')
+            attributes["attributes"] = {"activeHeatCoolMode": {"targetValue": "HEAT"},"activeScheduleLock": {"targetValue": "True"}}
+        if State == "OFF":
+            Domoticz.Debug('CH Off')
+            attributes["attributes"] = {"activeHeatCoolMode": {"targetValue": "OFF"},"activeScheduleLock": {"targetValue": "False"}}
+        nodes.append(attributes)
+        response["nodes"] = nodes
+        return response    
+
     def isLight(self, Unit):
         Domoticz.Debug(str(self.lightsSet))
         if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.lightsSet:
@@ -480,6 +502,13 @@ class BasePlugin:
 
     def isHotWaterRelay(self, Unit):
         if Unit in self.hwrelaySet:
+            return True
+        else:
+            return False
+
+    def isCentralHeatingRelay(self, Unit):
+        Domoticz.Debug(str(self.chrelaySet))
+        if Unit in self.chrelaySet:
             return True
         else:
             return False
