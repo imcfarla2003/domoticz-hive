@@ -28,7 +28,7 @@ class BasePlugin:
         self.activeplugsSet = set()
         self.hwrelaySet = set()
         self.chrelaySet = set()
-        self.TimedOutAvailable = False
+        self.TimedOutAvailable = True
         self.httpConn = False
         self.deviceConn = False
         self.sessionHost = 'beekeeper-uk.hivehome.com' 
@@ -40,18 +40,15 @@ class BasePlugin:
         Domoticz.Log('Starting')
         if Parameters["Mode6"] == "Debug":
             Domoticz.Debugging(1)
-        if int(self.getDomoticzRevision()) >= 8651: 
-            # Devices[unit].TimedOut only appears in Revision >= 8651
-            self.TimedOutAvailable = True
-            Domoticz.Log("TimedOut available")
-        else:
-            Domoticz.Log("TimedOut not available")
         self.multiplier = int(Parameters['Mode1'])
-        self.httpConn = Domoticz.Connection(Name="Hive Session", Transport="TCP/IP", Protocol="HTTPS", Address=self.sessionHost, Port="443")
-        self.httpConn.Connect() # Get a SessionId
-        self.deviceConn = Domoticz.Connection(Name="Hive Devices", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
-        self.deviceUpdateConn = Domoticz.Connection(Name="Hive Device Update", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
         self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
+        if int(self.getDomoticzRevision()) < 9030: 
+            Domoticz.Log("SNI connections are only available in Revision >= 9030.  This plugin will not work")
+        else:    
+            self.httpConn = Domoticz.Connection(Name="Hive Session", Transport="TCP/IP", Protocol="HTTPS", Address=self.sessionHost, Port="443")
+            self.httpConn.Connect() # Get a SessionId
+            self.deviceConn = Domoticz.Connection(Name="Hive Devices", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
+            self.deviceUpdateConn = Domoticz.Connection(Name="Hive Device Update", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
  
     def onStop(self):
         Domoticz.Log('Deleting Session')
