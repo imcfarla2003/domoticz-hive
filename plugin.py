@@ -1,10 +1,11 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF & roadsnail" version="0.5" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF & roadsnail" version="0.5(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
         <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="1"/>
         <param field="Mode2" label="Domoticz Port - only needed prior to version 3.8791" width="40px" required="false" default="8080"/>
+        <param field="Mode3" label="Postcode" width="100px" required="false" default=""/>
         <param field="Mode6" label="Debug" width="75px">
             <options>
                 <option label="True" value="Debug"/>
@@ -131,6 +132,7 @@ class BasePlugin:
             foundHeatingDevice = False
             foundThermostatDevice = False
             foundHotWaterDevice = False
+            foundOutsideDevice = False
 
             Domoticz.Debug('Getting Data')
             self.counter = 1
@@ -319,6 +321,20 @@ class BasePlugin:
                             Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                         else:
                             Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
+
+            if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
+                w = self.GetWeatherURL()
+                outsidetemp = w["temperature"]["value"]
+
+                for unit in Devices:
+                    if Devices[unit].DeviceID == "Hive_Outside":
+                        Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                        foundOutsideDevice = True
+
+                if foundOutsideDevice == False:
+                    Domoticz.Device(Name = 'Outside', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Outside').Create()
+                    self.counter = self.multiplier
+
         else:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
@@ -330,6 +346,30 @@ class BasePlugin:
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             r = urlopen(req).read().decode('utf-8')
             self.sessionId = json.loads(r)['token']
+
+    def GetWeatherURL(self):
+            weather = False
+            pc = str(Parameters['Mode3'])
+            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
+            wurl = 'https://weather.prod.bgchprod.info/weather?postcode=' +str(pc) + '&country=GB'
+            wreq = Request(wurl)
+			
+            try:
+                weather = urlopen(wreq).read().decode('utf-8')
+            except urllib.HTTPError as e:
+                if e.code == 401: # Unauthorised - need new sessionId
+                    self.onStop()
+                    self.GetSessionID()
+                    weather = urlopen(wreq).read().decode('utf-8')
+                else:
+                    Domoticz.Log(str(e))
+            except Exception as e:
+                Domoticz.Log(str(e))
+            try:
+                weather = json.loads(weather)['weather'] # get weather Object from the url response into a string for later	then return		
+            except Exception as e:
+                Domoticz.Log(str(e))
+            return weather
 
     def GetDevices(self):
             nodes = False
