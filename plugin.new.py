@@ -1,14 +1,18 @@
 '''
-<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla,MikeF & roadsnail" version="0.2" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla,MikeF & roadsnail" version="0.3" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
         <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="6"/>
-        <param field="Mode6" label="Debug" width="75px">
+        <param field="Mode6" label="Debug" width="150px">
             <options>
-                <option label="True" value="Debug"/>
-                <option label="False" value="Normal"  default="true" />
-            </options>
+                <option label="None" value="0"  default="true" />
+                <option label="Python Only" value="2"/>
+                <option label="Basic Debugging" value="62"/>
+                <option label="Basic+Messages" value="126"/>
+                <option label="Connections Only" value="16"/>
+                <option label="Connections+Queue" value="144"/>
+                <option label="All" value="-1"/></options>
         </param>
     </params>
 </plugin>
@@ -38,8 +42,8 @@ class BasePlugin:
     
     def onStart(self):
         Domoticz.Log('Starting')
-        if Parameters["Mode6"] == "Debug":
-            Domoticz.Debugging(1)
+        if Parameters["Mode6"] != "0":
+            Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
         self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
         if int(self.getDomoticzRevision()) < 9030: 
