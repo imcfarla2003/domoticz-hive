@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF & roadsnail" version="0.5(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.5.1(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
@@ -19,6 +19,7 @@ import Domoticz
 import json
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 
 class BasePlugin:
     enabled = False
@@ -356,7 +357,7 @@ class BasePlugin:
 			
             try:
                 weather = urlopen(wreq).read().decode('utf-8')
-            except urllib.HTTPError as e:
+            except HTTPError as e:
                 if e.code == 401: # Unauthorised - need new sessionId
                     self.onStop()
                     self.GetSessionID()
@@ -379,7 +380,7 @@ class BasePlugin:
             req = Request(url, headers = headers, unverifiable = True)
             try:
                 r = urlopen(req).read().decode('utf-8')
-            except urllib.HTTPError as e:
+            except HTTPError as e:
                 if e.code == 401: # Unauthorised - need new sessionId
                     self.onStop()
                     self.GetSessionID()
@@ -555,7 +556,7 @@ class BasePlugin:
                 Domoticz.Debug("Domoticz Version: " + Version + '->' + str(int(Version[-4:])))
                 if int(Version[-4:]) > Revision:  # I've managed to create a build that has Version different to Revision so take the highest
                     Revision = int(Version[-4:])
-            except urllib.HTTPError as e:
+            except HTTPError as e:
                 if e.code == 401:
                     Domoticz.Error("Ensure you have 127.0.0.1 in your 'Local Networks' selection")
                 else:
