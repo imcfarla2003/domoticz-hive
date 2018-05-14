@@ -341,12 +341,12 @@ class BasePlugin:
             Domoticz.Debug('Counter = ' + str(self.counter))
 
     def GetSessionID(self):
-            payload = {'username':Parameters["Username"], 'password':Parameters["Password"]}
-            headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-            url = 'https://beekeeper-uk.hivehome.com/1.0/gateway/login'
+            payload = {'sessions':[{'username':Parameters["Username"], 'password':Parameters["Password"]}]}
+            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', 'X-AlertMe-Client': 'Hive Web Dashboard'}
+            url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             r = urlopen(req).read().decode('utf-8')
-            self.sessionId = json.loads(r)['token']
+            self.sessionId = json.loads(r)["sessions"][0]['sessionId']
 
     def GetWeatherURL(self):
             weather = False
