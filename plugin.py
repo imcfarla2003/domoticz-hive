@@ -325,16 +325,17 @@ class BasePlugin:
 
             if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
                 w = self.GetWeatherURL()
-                outsidetemp = w["temperature"]["value"]
-
-                for unit in Devices:
-                    if Devices[unit].DeviceID == "Hive_Outside":
-                        Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
-                        foundOutsideDevice = True
-
-                if foundOutsideDevice == False:
-                    Domoticz.Device(Name = 'Outside', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Outside').Create()
-                    self.counter = self.multiplier
+                if w != False:
+                    outsidetemp = w["temperature"]["value"]
+    
+                    for unit in Devices:
+                        if Devices[unit].DeviceID == "Hive_Outside":
+                            Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                            foundOutsideDevice = True
+    
+                    if foundOutsideDevice == False:
+                        Domoticz.Device(Name = 'Outside', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Outside').Create()
+                        self.counter = self.multiplier
 
         else:
             self.counter += 1
