@@ -16,11 +16,11 @@ args = parser.parse_args()
 requests.packages.urllib3.disable_warnings()
 
 # log on to Hive
-payload = {'username':args.username, 'password':args.password}
-headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-url = 'https://beekeeper-uk.hivehome.com/1.0/gateway/login'
+payload = {'sessions':[{'username':args.username, 'password':args.password}]}
+headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', 'X-AlertMe-Client': 'Hive Web Dashboard'}
+url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
 r = requests.post(url, headers=headers, data=json.dumps(payload), verify=False)
-sessionId = r.json()["token"]
+sessionId = r.json()["sessions"][0]['sessionId']
 
 headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', \
         'X-AlertMe-Client': 'swagger', 'X-Omnia-Access-Token': sessionId}
@@ -28,7 +28,7 @@ url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
 r = requests.get(url, headers=headers, verify=False)
 
 # Find thermostat node
-print r.json()["nodes"]
+print(r.json()["nodes"])
 
 # log out from Hive
 headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', \
