@@ -17,6 +17,7 @@
 '''
 import Domoticz
 import json
+import math
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 from urllib.error import HTTPError
@@ -79,6 +80,7 @@ class BasePlugin:
         headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', \
                    'X-AlertMe-Client': 'swagger', 'X-Omnia-Access-Token': self.sessionId}
         url = 'https://api.prod.bgchprod.info:443/omnia/nodes/' + Devices[Unit].DeviceID
+        payload = ""
         if self.isLight(Unit):
             Domoticz.Log("Setting Light Parameters")
             if str(Command) == "Set Level":
@@ -87,6 +89,22 @@ class BasePlugin:
                 payload = self.CreateLightPayload("ON", Devices[Unit].LastLevel)
             if str(Command) == "Off":
                 payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
+            if str(Command) == "Set Color":
+                Domoticz.Debug(Hue)
+                colourDict = json.loads(Hue)
+                colourMode = colourDict.get("m")
+                if colourMode == 2:
+                    # white temp
+                    colourTemp = 6533-(colourDict.get("t")*15)
+                    Domoticz.Debug(str(colourTemp))
+                    payload = self.CreateLightPayload("ON", Level, "TUNABLE", colourTemp)
+                elif colourMode == 3:
+                    # rgb colour
+                    h, s, v = rgb2hsv(colourDict.get("r"),colourDict.get("g"),colourDict.get("b"))
+                    Domoticz.Debug(str(h) + " " + str(s) + " " +str(v))
+                    payload = self.CreateLightPayload("ON", Level, "COLOUR", h, s)
+                else:
+                   Domoticz.Log("Colour Mode not supported: " + str(colourMode))
         elif self.isThermostat(Unit):
             Domoticz.Log("Setting Thermostat Level")
             payload = self.CreateThermostatPayload(Level)
@@ -109,15 +127,17 @@ class BasePlugin:
             if str(Command) == "Off":
                 payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
         else:
-            payload = ""
             Domoticz.Log("Unknown Device Type")
         if payload != "":
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             req.get_method = lambda : 'PUT'
             try:
                 r = urlopen(req).read().decode('utf-8')
+                # Process the update sent back from Hive?
             except Exception as e:
                 Domoticz.Log(str(e))
+        else:
+            Domoticz.Log(str(Command) + " not handled")
     
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Debug('Notification: ' + Name + ',' + Subject + ',' + Text + ',' + Status + ',' + str(Priority) + ',' + Sound + ',' + ImageFile)
@@ -243,7 +263,8 @@ class BasePlugin:
             else:
                  Domoticz.Debug('No hot water thermostat/relay found')
 
-            lights = self.GetLights(d)
+            lights = self.GetLights(d) 
+            lights += self.GetColourLights(d)
             if lights:
                 for node in lights:
                     for unit in Devices:
@@ -271,15 +292,28 @@ class BasePlugin:
                                     Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["reportedValue"]))
                                     if Devices[unit].LastLevel != int(node["attributes"]["brightness"]["reportedValue"]) or Devices[unit].sValue == 'Off':
                                         if self.TimedOutAvailable:
-                                            Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), TimedOut=0, SignalLevel=int(rssi)) # 2 = Set Level
+                                            if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
+                                                # 2 = Set Level
+                                                Devices[unit].Update(nValue=1, sValue=str(node["attributes"]["brightness"]["reportedValue"]), TimedOut=0, SignalLevel=int(rssi))
+                                            else:
+                                                # 2 = Set Level
+                                                Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), TimedOut=0, SignalLevel=int(rssi))
                                         else:
-                                            Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
+                                            # 2 = Set Level
+                                            Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi))
                             break
                     else:
                         Domoticz.Log("Light not found " + node["name"])
                         newUnit = self.GetNextUnit(False)
-                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=7, DeviceID = node['id']).Create()
-                        #light_rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                        if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
+                            # RGB WW CW Bulb
+                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=4, DeviceID = node['id']).Create()
+                        elif node["attributes"]["model"]["reportedValue"] == "WWBulb01":
+                            # WW CW Bulb - model not yet known
+                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=8, DeviceID = node['id']).Create()
+                        else:
+                            # Standard dimmable light
+                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=7, DeviceID = node['id']).Create()
                         if node["attributes"]["state"]["reportedValue"] == "OFF":
                             Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                         else: 
@@ -425,6 +459,13 @@ class BasePlugin:
             lights = x
         return lights
 
+    def GetColourLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
     def GetActivePlugs(self, d):
         activeplugs = False
         x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
@@ -441,15 +482,35 @@ class BasePlugin:
             nextUnit = self.GetNextUnit(nextUnit)
         return nextUnit
 
-    def CreateLightPayload(self, State, Brightness):
+    def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
+        # state ON or OFF
+        # brightness 0->100
+        # colourMode COLOUR or TUNABLE : switches from colour to temperature mode
+        # colourMode = COLOUR  colourTemperature(hsvHue) - 0->355, hsvSat - 0->1 
+        # colourMode = TUNABLE colourTemperature 2700->6533
         response = {}
         nodes = []
         attributes = {}
         state = {}
         brightness = {}
-        brightness["targetValue"] = Brightness
         state["targetValue"] = State
-        attributes["attributes"] = {"brightness":brightness,"state":state}
+        brightness["targetValue"] = Brightness
+        if ColourMode == None:
+            attributes["attributes"] = {"brightness":brightness,"state":state}
+        if ColourMode == "COLOUR":
+            colourMode = {}
+            hsvHue = {}
+            hsvSat = {}
+            colourMode["targetValue"] = ColourMode
+            hsvHue["targetValue"] = ColourTemperature
+            hsvSat["targetValue"] = HsvSat * 100
+            attributes["attributes"] = {"brightness":brightness,"state":state,"colourMode":colourMode,"hsvHue":hsvHue,"hsvSaturation":hsvSat}
+        if ColourMode == "TUNABLE":
+            colourMode = {}
+            colourTemperature = {}
+            colourMode["targetValue"] = ColourMode
+            colourTemperature["targetValue"] = ColourTemperature
+            attributes["attributes"] = {"brightness":brightness,"state":state,"colourMode":colourMode,"colourTemperature":colourTemperature}
         nodes.append(attributes)
         response["nodes"] = nodes
         return response
@@ -507,6 +568,10 @@ class BasePlugin:
     def isLight(self, Unit):
         Domoticz.Debug(str(self.lightsSet))
         if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.lightsSet:
+            Domoticz.Debug(str(Unit) + " is Light")
+            return True
+        elif Devices[Unit].Type == 241 and Devices[Unit].SubType == 4 and Unit in self.lightsSet:
+            Domoticz.Debug(str(Unit) + " is Light")
             return True
         else:
             return False
@@ -634,5 +699,25 @@ def merge_dicts(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
+
+def rgb2hsv(r, g, b):
+    r, g, b = r/255.0, g/255.0, b/255.0
+    mx = max(r, g, b)
+    mn = min(r, g, b)
+    df = mx-mn
+    if mx == mn:
+        h = 0
+    elif mx == r:
+        h = (60 * ((g-b)/df) + 360) % 360
+    elif mx == g:
+        h = (60 * ((b-r)/df) + 120) % 360
+    elif mx == b:
+        h = (60 * ((r-g)/df) + 240) % 360
+    if mx == 0:
+        s = 0
+    else:
+        s = df/mx
+    v = mx
+    return h, s, v
 
 # vim: tabstop=4 expandtab
