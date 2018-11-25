@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.5.1(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.6(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
@@ -133,7 +133,9 @@ class BasePlugin:
             req.get_method = lambda : 'PUT'
             try:
                 r = urlopen(req).read().decode('utf-8')
-                # Process the update sent back from Hive?
+                # Process the update sent back from Hive
+                d = json.loads(r)['nodes']
+                self.UpdateDeviceState(d)
             except Exception as e:
                 Domoticz.Log(str(e))
         else:
@@ -148,215 +150,10 @@ class BasePlugin:
     def onHeartbeat(self):
         Domoticz.Debug('onHeartbeat called')
         if self.counter >= self.multiplier:
-            foundInsideDevice = False
-            foundTargetDevice = False
-            foundHeatingDevice = False
-            foundThermostatDevice = False
-            foundHotWaterDevice = False
-            foundOutsideDevice = False
-
             Domoticz.Debug('Getting Data')
             self.counter = 1
             d = self.GetDevices()
-            Domoticz.Debug('Getting Temperatures')
-            thermostat = self.GetThermostat(d, 'Heating')
-            if thermostat:
-                # get the temperature and heating states
-                ch_id = thermostat["id"]	# Central Heating ID is same as Thermostat ID
-                temp = thermostat["attributes"]["temperature"]["reportedValue"]
-                Domoticz.Debug('Temp = ' + str(temp))
-                targetTemp = thermostat["attributes"]["targetHeatTemperature"]["reportedValue"]
-                if targetTemp < 7.0: targetTemp = 7.0
-                Domoticz.Debug('Target = ' + str(targetTemp))
-                heating = thermostat["attributes"]["stateHeatingRelay"]["reportedValue"]
-                Domoticz.Debug('Heating = ' + heating)
-                Domoticz.Debug('Getting Battery Status')
-                thermostatui = self.GetThermostatUI(d)
-                # get the battery and rssi values
-                thermostat_battery = thermostatui["attributes"]["batteryLevel"]["reportedValue"]
-                Domoticz.Debug('Battery = ' + str(thermostat_battery))
-                thermostat_rssi = 12*((0 - thermostatui["attributes"]["RSSI"]["reportedValue"])/100)
-                Domoticz.Debug('RSSI = ' + str(thermostat_rssi))
-				
-                # Loop through the devices and update temperatures
-                Domoticz.Debug('Updating Devices')
-                for unit in Devices:
-                    if Devices[unit].DeviceID == "Hive_Inside":
-                        Devices[unit].Update(nValue=int(temp), sValue=str(temp))
-                        foundInsideDevice = True
-                    if Devices[unit].DeviceID == "Hive_Target":
-                        Devices[unit].Update(nValue=int(targetTemp), sValue=str(targetTemp))
-                        foundTargetDevice = True
-                    if Devices[unit].DeviceID == ch_id and Devices[unit].Type == 244:	#if CH Switch device
-                        foundHeatingDevice = True
-                        if unit not in set(self.chrelaySet):
-                            self.chrelaySet.add(unit)
-                        if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
-                            if self.TimedOutAvailable:
-                                if Devices[unit].TimedOut == 0:
-                                    Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1)
-                            else:
-                                Domoticz.Log("Device Offline : " + Devices[unit].Name)
-                        else:
-                            if heating == 'ON':
-                                if Devices[unit].nValue == 0:
-                                    if self.TimedOutAvailable:
-                                        Devices[unit].Update(nValue=1, sValue='On', TimedOut=0)
-                                    else:
-                                        Devices[unit].Update(nValue=1, sValue='On')
-                            else:
-                                if Devices[unit].nValue == 1:
-                                    if self.TimedOutAvailable:
-                                        Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0)
-                                    else:
-                                        Devices[unit].Update(nValue=0, sValue='Off')
-                    if Devices[unit].DeviceID == thermostat['id']:
-                        foundThermostatDevice = True
-                        if Devices[unit].Type == 242: #Thermostat
-                           Devices[unit].Update(nValue = int(targetTemp), sValue = str(targetTemp), BatteryLevel = int(thermostat_battery), SignalLevel = int(thermostat_rssi)) 
-                if foundInsideDevice == False:
-                    Domoticz.Device(Name = 'Inside', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Inside').Create()
-                    self.counter = self.multiplier
-                if foundTargetDevice == False:
-                    Domoticz.Device(Name = 'Target', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Target').Create()
-                    self.counter = self.multiplier
-                if foundHeatingDevice == False:
-                    Domoticz.Device(Name = 'Heating', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = ch_id).Create()
-                    self.counter = self.multiplier
-                if foundThermostatDevice == False:
-                    Domoticz.Device(Name = 'Thermostat', Unit = self.GetNextUnit(False), Type = 242, Subtype = 1, DeviceID = thermostat['id']).Create()
-                    self.counter = self.multiplier
-            else:
-                 Domoticz.Debug('No heating thermostat found')
-
-            thermostatW = self.GetThermostat(d, 'HotWater')
-            if thermostatW: # HotWater too...
-                hotwater = thermostatW["attributes"]["stateHotWaterRelay"]["reportedValue"]
-                hw_id = thermostatW["id"]
-                for unit in Devices:
-                    if Devices[unit].DeviceID == hw_id:
-                        foundHotWaterDevice = True
-                        if unit not in set(self.hwrelaySet):
-                            self.hwrelaySet.add(unit)
-                        if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
-                            if self.TimedOutAvailable:
-                                if Devices[unit].TimedOut == 0:
-                                    Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1)
-                            else:
-                                Domoticz.Log("Device Offline : " + Devices[unit].Name)
-                        else:
-                            if hotwater == 'ON':
-                                if Devices[unit].nValue == 0:
-                                    if self.TimedOutAvailable:
-                                        Devices[unit].Update(nValue=1, sValue='On', TimedOut=0)
-                                    else:
-                                        Devices[unit].Update(nValue=1, sValue='On')
-                            else:
-                                if Devices[unit].nValue == 1:
-                                    if self.TimedOutAvailable:
-                                        Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0)
-                                    else:
-                                        Devices[unit].Update(nValue=0, sValue='Off')
-                if foundHotWaterDevice == False:
-                    Domoticz.Device(Name = 'HotWater - Relay', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = hw_id).Create()
-                    self.counter = self.multiplier
-            else:
-                 Domoticz.Debug('No hot water thermostat/relay found')
-
-            lights = self.GetLights(d) 
-            lights += self.GetColourLights(d)
-            if lights:
-                for node in lights:
-                    for unit in Devices:
-                        rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
-                        if node['id'] == Devices[unit].DeviceID:
-                            if unit not in set(self.lightsSet):
-                                self.lightsSet.add(unit)
-                            Domoticz.Debug(Devices[unit].Name + ": " + node["attributes"]["presence"]["reportedValue"])
-                            if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
-                                if self.TimedOutAvailable:
-                                    if Devices[unit].TimedOut == 0:
-                                        Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1, SignalLevel=0)
-                                else:
-                                    Domoticz.Log("Device Offline : " + Devices[unit].Name)
-                            else:
-                                if node["attributes"]["state"]["reportedValue"] == "OFF":
-                                    if Devices[unit].nValue != 0:
-                                        if self.TimedOutAvailable:
-                                            Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
-                                        else:
-                                            Devices[unit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
-                                else:
-                                    Domoticz.Debug("State: " + Devices[unit].sValue)
-                                    Domoticz.Debug("Brightness Target: " + str(Devices[unit].LastLevel))
-                                    Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["reportedValue"]))
-                                    if Devices[unit].LastLevel != int(node["attributes"]["brightness"]["reportedValue"]) or Devices[unit].sValue == 'Off':
-                                        if self.TimedOutAvailable:
-                                            if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
-                                                # 2 = Set Level
-                                                Devices[unit].Update(nValue=1, sValue=str(node["attributes"]["brightness"]["reportedValue"]), TimedOut=0, SignalLevel=int(rssi))
-                                            else:
-                                                # 2 = Set Level
-                                                Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), TimedOut=0, SignalLevel=int(rssi))
-                                        else:
-                                            # 2 = Set Level
-                                            Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi))
-                            break
-                    else:
-                        Domoticz.Log("Light not found " + node["name"])
-                        newUnit = self.GetNextUnit(False)
-                        if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
-                            # RGB WW CW Bulb
-                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=4, DeviceID = node['id']).Create()
-                        elif node["attributes"]["model"]["reportedValue"] == "WWBulb01":
-                            # WW CW Bulb - model not yet known
-                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=8, DeviceID = node['id']).Create()
-                        else:
-                            # Standard dimmable light
-                            Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=7, DeviceID = node['id']).Create()
-                        if node["attributes"]["state"]["reportedValue"] == "OFF":
-                            Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
-                        else: 
-                            Devices[newUnit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
-
-            activeplugs = self.GetActivePlugs(d)
-            if activeplugs:
-                for node in activeplugs:
-                    for unit in Devices:
-                        rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
-                        if node['id'] == Devices[unit].DeviceID:
-                            if unit not in set(self.activeplugsSet):
-                                self.activeplugsSet.add(unit)
-                            if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
-                                if self.TimedOutAvailable:
-                                    if Devices[unit].TimedOut == 0:
-                                        Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1, SignalLevel=0)
-                                else:
-                                    Domoticz.Log("Device Offline : " + Devices[unit].Name)
-                            else:
-                                if node["attributes"]["state"]["reportedValue"] == "OFF":
-                                    if Devices[unit].nValue != 0:
-                                        if self.TimedOutAvailable:
-                                            Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
-                                        else:
-                                            Devices[unit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
-                                else:
-                                    Domoticz.Debug("State: " + Devices[unit].sValue)
-                                    if Devices[unit].nValue != 1:
-                                        if self.TimedOutAvailable:
-                                            Devices[unit].Update(nValue=1, sValue='On', TimedOut=0, SignalLevel=int(rssi))
-                                        else:
-                                            Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
-                            break
-                    else:
-                        Domoticz.Log("ActivePlug not found " + node["name"])
-                        newUnit = self.GetNextUnit(False)
-                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=0, DeviceID = node['id']).Create()
-                        if node["attributes"]["state"]["reportedValue"] == "OFF":
-                            Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
-                        else:
-                            Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
-
+            self.UpdateDeviceState(d)
             if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
                 w = self.GetWeatherURL()
                 if w != False:
@@ -481,6 +278,226 @@ class BasePlugin:
         if nextUnit in Devices or nextUnit <= 1:
             nextUnit = self.GetNextUnit(nextUnit)
         return nextUnit
+
+    def UpdateDeviceState(self, d):
+        foundInsideDevice = False
+        foundTargetDevice = False
+        foundHeatingDevice = False
+        foundThermostatDevice = False
+        foundHotWaterDevice = False
+        foundOutsideDevice = False
+
+        Domoticz.Debug('Getting Temperatures')
+        thermostat = self.GetThermostat(d, 'Heating')
+        if thermostat:
+            # get the temperature and heating states
+            ch_id = thermostat["id"]	# Central Heating ID is same as Thermostat ID
+            temp = thermostat["attributes"]["temperature"]["reportedValue"]
+            Domoticz.Debug('Temp = ' + str(temp))
+            targetTemp = thermostat["attributes"]["targetHeatTemperature"]["reportedValue"]
+            if targetTemp < 7.0: targetTemp = 7.0
+            Domoticz.Debug('Target = ' + str(targetTemp))
+            heating = thermostat["attributes"]["stateHeatingRelay"]["reportedValue"]
+            Domoticz.Debug('Heating = ' + heating)
+            Domoticz.Debug('Getting Battery Status')
+            thermostatui = self.GetThermostatUI(d)
+            # get the battery and rssi values
+            thermostat_battery = thermostatui["attributes"]["batteryLevel"]["reportedValue"]
+            Domoticz.Debug('Battery = ' + str(thermostat_battery))
+            thermostat_rssi = 12*((0 - thermostatui["attributes"]["RSSI"]["reportedValue"])/100)
+            Domoticz.Debug('RSSI = ' + str(thermostat_rssi))
+
+            # Loop through the devices and update temperatures
+            Domoticz.Debug('Updating Devices')
+            for unit in Devices:
+                if Devices[unit].DeviceID == "Hive_Inside":
+                    Devices[unit].Update(nValue=int(temp), sValue=str(temp))
+                    foundInsideDevice = True
+                if Devices[unit].DeviceID == "Hive_Target":
+                    Devices[unit].Update(nValue=int(targetTemp), sValue=str(targetTemp))
+                    foundTargetDevice = True
+                if Devices[unit].DeviceID == ch_id and Devices[unit].Type == 244:	#if CH Switch device
+                    foundHeatingDevice = True
+                    if unit not in set(self.chrelaySet):
+                        self.chrelaySet.add(unit)
+                    if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                        if self.TimedOutAvailable:
+                            if Devices[unit].TimedOut == 0:
+                                Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1)
+                        else:
+                            Domoticz.Log("Device Offline : " + Devices[unit].Name)
+                    else:
+                        if heating == 'ON':
+                            if Devices[unit].nValue == 0:
+                                if self.TimedOutAvailable:
+                                    Devices[unit].Update(nValue=1, sValue='On', TimedOut=0)
+                                else:
+                                    Devices[unit].Update(nValue=1, sValue='On')
+                        else:
+                            if Devices[unit].nValue == 1:
+                                if self.TimedOutAvailable:
+                                    Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0)
+                                else:
+                                    Devices[unit].Update(nValue=0, sValue='Off')
+                if Devices[unit].DeviceID == thermostat['id']:
+                    foundThermostatDevice = True
+                    if Devices[unit].Type == 242: #Thermostat
+                       Devices[unit].Update(nValue = int(targetTemp), sValue = str(targetTemp), BatteryLevel = int(thermostat_battery), SignalLevel = int(thermostat_rssi))
+            if foundInsideDevice == False:
+                Domoticz.Device(Name = 'Inside', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Inside').Create()
+                self.counter = self.multiplier
+            if foundTargetDevice == False:
+                Domoticz.Device(Name = 'Target', Unit = self.GetNextUnit(False), TypeName = 'Temperature', DeviceID = 'Hive_Target').Create()
+                self.counter = self.multiplier
+            if foundHeatingDevice == False:
+                Domoticz.Device(Name = 'Heating', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = ch_id).Create()
+                self.counter = self.multiplier
+            if foundThermostatDevice == False:
+                Domoticz.Device(Name = 'Thermostat', Unit = self.GetNextUnit(False), Type = 242, Subtype = 1, DeviceID = thermostat['id']).Create()
+                self.counter = self.multiplier
+        else:
+             Domoticz.Debug('No heating thermostat found')
+
+        thermostatW = self.GetThermostat(d, 'HotWater')
+        if thermostatW: # HotWater too...
+            hotwater = thermostatW["attributes"]["stateHotWaterRelay"]["reportedValue"]
+            hw_id = thermostatW["id"]
+            for unit in Devices:
+                if Devices[unit].DeviceID == hw_id:
+                    foundHotWaterDevice = True
+                    if unit not in set(self.hwrelaySet):
+                        self.hwrelaySet.add(unit)
+                    if thermostatui["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                        if self.TimedOutAvailable:
+                            if Devices[unit].TimedOut == 0:
+                                Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1)
+                        else:
+                            Domoticz.Log("Device Offline : " + Devices[unit].Name)
+                    else:
+                        if hotwater == 'ON':
+                            if Devices[unit].nValue == 0:
+                                if self.TimedOutAvailable:
+                                    Devices[unit].Update(nValue=1, sValue='On', TimedOut=0)
+                                else:
+                                    Devices[unit].Update(nValue=1, sValue='On')
+                        else:
+                            if Devices[unit].nValue == 1:
+                                if self.TimedOutAvailable:
+                                    Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0)
+                                else:
+                                    Devices[unit].Update(nValue=0, sValue='Off')
+            if foundHotWaterDevice == False:
+                Domoticz.Device(Name = 'HotWater - Relay', Unit = self.GetNextUnit(False), TypeName = 'Switch', Switchtype = 0, DeviceID = hw_id).Create()
+                self.counter = self.multiplier
+        else:
+             Domoticz.Debug('No hot water thermostat/relay found')
+
+        lights = self.GetLights(d)
+        colourlights = self.GetColourLights(d)
+        if lights:
+            Domoticz.Debug("Found Standard Light")
+            if colourlights:
+                Domoticz.Debug("Found Colour Light")
+                lights += colourlights
+        else:
+            if colourlights:
+                Domoticz.Debug("Found Colour Light")
+                lights = colourlights
+        if lights:
+            for node in lights:
+                rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                for unit in Devices:
+                    if node['id'] == Devices[unit].DeviceID:
+                        if unit not in set(self.lightsSet):
+                            self.lightsSet.add(unit)
+                        Domoticz.Debug(Devices[unit].Name + ": " + node["attributes"]["presence"]["reportedValue"])
+                        if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                            if self.TimedOutAvailable:
+                                if Devices[unit].TimedOut == 0:
+                                    Devices[unit].Update(nValue=0, sValue='Off', TimedOut=1, SignalLevel=0)
+                            else:
+                                Domoticz.Log("Device Offline : " + Devices[unit].Name)
+                        else:
+                            # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
+                            Domoticz.Debug("State: " + Devices[unit].sValue + " -> " + node["attributes"]["state"]["targetValue"])
+                            if node["attributes"]["state"]["targetValue"] == "OFF":
+                                if Devices[unit].nValue != 0:
+                                    if self.TimedOutAvailable:
+                                        Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
+                                    else:
+                                        Devices[unit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                            else:
+                                Domoticz.Debug("Brightness Target: " + str(Devices[unit].LastLevel))
+                                Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["targetValue"]))
+                                if Devices[unit].LastLevel != int(node["attributes"]["brightness"]["targetValue"]) or Devices[unit].sValue == 'Off':
+                                    if self.TimedOutAvailable:
+                                        if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
+                                            # Don't bother with colours as there is currently nowhere in domoticz to store these
+                                            # 1 = Set Level for rgbww dimmer
+                                            Devices[unit].Update(nValue=1, sValue=str(node["attributes"]["brightness"]["targetValue"]), TimedOut=0, SignalLevel=int(rssi))
+                                        else:
+                                            # 2 = Set Level
+                                            Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["targetValue"]), TimedOut=0, SignalLevel=int(rssi))
+                                    else:
+                                        # 2 = Set Level
+                                        Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["targetValue"]), SignalLevel=int(rssi))
+                        found = True
+                        Domoticz.Debug("Light finished " + node["name"])
+                        break
+                if not found:
+                    Domoticz.Log("Light not found " + node["name"])
+                    newUnit = self.GetNextUnit(False)
+                    if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
+                        # RGB WW CW Bulb
+                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=4, DeviceID = node['id']).Create()
+                    elif node["attributes"]["model"]["reportedValue"] == "WWBulb01":
+                        # WW CW Bulb - model not yet known
+                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=8, DeviceID = node['id']).Create()
+                    else:
+                        # Standard dimmable light
+                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=7, DeviceID = node['id']).Create()
+                    if node["attributes"]["state"]["reportedValue"] == "OFF":
+                        Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                    else:
+                        Devices[newUnit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
+
+        activeplugs = self.GetActivePlugs(d)
+        if activeplugs:
+            for node in activeplugs:
+                for unit in Devices:
+                    rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                    if node['id'] == Devices[unit].DeviceID:
+                        if unit not in set(self.activeplugsSet):
+                            self.activeplugsSet.add(unit)
+                        if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                            if self.TimedOutAvailable:
+                                if Devices[unit].TimedOut == 0:
+                                    Devices[unit].Update(nValue=Devices[unit].nValue, sValue=Devices[unit].sValue, TimedOut=1, SignalLevel=0)
+                            else:
+                                Domoticz.Log("Device Offline : " + Devices[unit].Name)
+                        else:
+                            if node["attributes"]["state"]["reportedValue"] == "OFF":
+                                if Devices[unit].nValue != 0:
+                                    if self.TimedOutAvailable:
+                                        Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
+                                    else:
+                                        Devices[unit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                            else:
+                                Domoticz.Debug("State: " + Devices[unit].sValue)
+                                if Devices[unit].nValue != 1:
+                                    if self.TimedOutAvailable:
+                                        Devices[unit].Update(nValue=1, sValue='On', TimedOut=0, SignalLevel=int(rssi))
+                                    else:
+                                        Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
+                        break
+                else:
+                    Domoticz.Log("ActivePlug not found " + node["name"])
+                    newUnit = self.GetNextUnit(False)
+                    Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=0, DeviceID = node['id']).Create()
+                    if node["attributes"]["state"]["reportedValue"] == "OFF":
+                        Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                    else:
+                        Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
 
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
