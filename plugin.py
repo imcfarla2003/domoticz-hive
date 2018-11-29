@@ -503,8 +503,8 @@ class BasePlugin:
         # state ON or OFF
         # brightness 0->100
         # colourMode COLOUR or TUNABLE : switches from colour to temperature mode
-        # colourMode = COLOUR  colourTemperature(hsvHue) - 0->355, hsvSat - 0->1 
-        # colourMode = TUNABLE colourTemperature 2700->6533
+        # colourMode = COLOUR  colourTemperature(hsvHue) - 0->359, hsvSat - 0->1 
+        # colourMode = TUNABLE colourTemperature 2700->6535
         response = {}
         nodes = []
         attributes = {}

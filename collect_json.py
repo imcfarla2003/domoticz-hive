@@ -28,7 +28,8 @@ url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
 r = requests.get(url, headers=headers, verify=False)
 
 # Find thermostat node
-print(r.json()["nodes"])
+#print(r.json()["nodes"])
+print(json.dumps(r.json(),sort_keys=True, indent=4))
 
 # log out from Hive
 headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', \
