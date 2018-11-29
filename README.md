@@ -10,11 +10,10 @@ Then go to setup and you should be able to choose Hive plugin in the Type dropdo
 
 - Add your Hive username and password and click Add at the bottom.
 - The Heartbeat multiplier defines how many heartbeats before it processes the data from Hive
-I started off with 6 (60s) as the default but now I have added in light control this really should just be 1 (10s) otherwise you wait too long before the dashboard updates to say you have switched on a light.
-- You will also need to specify the Domoticz Port and check that password-less access is available (add 127.0.0.1 into the "Local Networks" box on the Settings page) if you are using version 3.8790 or below
+I decided to use 6 (60s) as the default.  This is a good balance between the dashboard updating when using the hive app and how many updates you request.
+- If you are using version 3.8790 or below (older than current stable) you will also need to specify the Domoticz Port and check that password-less access is available (add 127.0.0.1 into the "Local Networks" box on the Settings page) 
 
 Note:
-Only works for Active Light Dimmable as I haven't got any Cool to Warm or Colour Changing
-
+Only works for Active Light Dimmable and Colour Changing lights as I haven't got any Cool to Warm (yet)
 ActivePlug is now working.
 
