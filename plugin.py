@@ -159,6 +159,8 @@ class BasePlugin:
                 if w != False:
                     outsidetemp = w["temperature"]["value"]
     
+                    foundOutsideDevice = False
+
                     for unit in Devices:
                         if Devices[unit].DeviceID == "Hive_Outside":
                             Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
@@ -285,7 +287,6 @@ class BasePlugin:
         foundHeatingDevice = False
         foundThermostatDevice = False
         foundHotWaterDevice = False
-        foundOutsideDevice = False
 
         Domoticz.Debug('Getting Temperatures')
         thermostat = self.GetThermostat(d, 'Heating')
