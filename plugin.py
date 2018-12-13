@@ -44,7 +44,7 @@ class BasePlugin:
             self.TimedOutAvailable = True
             Domoticz.Log("TimedOut available")
         else:
-            Domoticz.Log("TimedOut not available")
+            Domoticz.Log("TimedOut not available: " + self.getDomoticzRevision())
         self.multiplier = int(Parameters['Mode1'])
         self.counter = self.multiplier # update immediately
         if self.sessionId == '':
@@ -256,6 +256,13 @@ class BasePlugin:
             lights = x
         return lights
 
+    def GetTunableLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
     def GetColourLights(self, d):
         lights = False
         x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
@@ -393,19 +400,36 @@ class BasePlugin:
              Domoticz.Debug('No hot water thermostat/relay found')
 
         lights = self.GetLights(d)
+        tunablelights = self.GetTunableLights(d)
         colourlights = self.GetColourLights(d)
         if lights:
-            Domoticz.Debug("Found Standard Light")
+            Domoticz.Debug("Found Standard Light(s)")
             if colourlights:
-                Domoticz.Debug("Found Colour Light")
+                Domoticz.Debug("Found Colour Light(s)")
                 lights += colourlights
+                if tunablelights:
+                    Domoticz.Debug("Found Tunable Light(s)")
+                    lights += tunablelights
+            else:
+                if tunablelights:
+                    Domoticz.Debug("Found Tunable Light(s)")
+                    lights += tunablelights
         else:
             if colourlights:
-                Domoticz.Debug("Found Colour Light")
+                Domoticz.Debug("Found Colour Light(s)")
                 lights = colourlights
+                if tunablelights:
+                    Domoticz.Debug("Found Tunable Light(s)")
+                    lights += tunablelights
+            else:
+                if tunablelights:
+                    Domoticz.Debug("Found Tunable Light(s)")
+                    lights = tunablelights
         if lights:
             for node in lights:
+                Domoticz.Debug("Light detected " + node["name"])
                 rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                found = False
                 for unit in Devices:
                     if node['id'] == Devices[unit].DeviceID:
                         if unit not in set(self.lightsSet):
@@ -435,9 +459,14 @@ class BasePlugin:
                                             # Don't bother with colours as there is currently nowhere in domoticz to store these
                                             # 1 = Set Level for rgbww dimmer
                                             Devices[unit].Update(nValue=1, sValue=str(node["attributes"]["brightness"]["targetValue"]), TimedOut=0, SignalLevel=int(rssi))
-                                        else:
+                                        elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
+                                            # 1 = Set Level for ww dimmer
+                                            Devices[unit].Update(nValue=1, sValue=str(node["attributes"]["brightness"]["targetValue"]), TimedOut=0, SignalLevel=int(rssi))
+                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
                                             # 2 = Set Level
                                             Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["targetValue"]), TimedOut=0, SignalLevel=int(rssi))
+                                        else:
+                                            Domoticz.Debug("Unknown Light")
                                     else:
                                         # 2 = Set Level
                                         Devices[unit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["targetValue"]), SignalLevel=int(rssi))
@@ -449,17 +478,21 @@ class BasePlugin:
                     newUnit = self.GetNextUnit(False)
                     if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
                         # RGB WW CW Bulb
-                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=4, DeviceID = node['id']).Create()
-                    elif node["attributes"]["model"]["reportedValue"] == "WWBulb01":
-                        # WW CW Bulb - model not yet known
-                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=8, DeviceID = node['id']).Create()
-                    else:
+                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=4, Switchtype=7, DeviceID = node['id']).Create()
+                    elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
+                        # TW CW Bulb
+                        Domoticz.Device(Name = node["name"], Unit = newUnit, Type=241, Subtype=8, Switchtype=7, DeviceID = node['id']).Create()
+                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
                         # Standard dimmable light
                         Domoticz.Device(Name = node["name"], Unit = newUnit, Type=244, Subtype=73, Switchtype=7, DeviceID = node['id']).Create()
-                    if node["attributes"]["state"]["reportedValue"] == "OFF":
-                        Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                     else:
-                        Devices[newUnit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
+                        Domoticz.Debug("Unknown Light")
+                    if node["attributes"]["state"]["reportedValue"] == "OFF":
+                        Domoticz.Debug("New Device Off")
+                        #Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                    else:
+                        Domoticz.Debug("New Device On")
+                        #Devices[newUnit].Update(nValue=2, sValue=str(node["attributes"]["brightness"]["reportedValue"]), SignalLevel=int(rssi)) # 2 = Set Level
 
         activeplugs = self.GetActivePlugs(d)
         if activeplugs:
@@ -590,6 +623,9 @@ class BasePlugin:
         elif Devices[Unit].Type == 241 and Devices[Unit].SubType == 4 and Unit in self.lightsSet:
             Domoticz.Debug(str(Unit) + " is Light")
             return True
+        elif Devices[Unit].Type == 241 and Devices[Unit].SubType == 8 and Unit in self.lightsSet:
+            Domoticz.Debug(str(Unit) + " is Light")
+            return True
         else:
             return False
 
@@ -623,8 +659,8 @@ class BasePlugin:
     def getDomoticzRevision(self):
         Revision = 0
         if 'DomoticzVersion' in Parameters:
-            Domoticz.Log("DomoticzVersion Available")
-            Revision = Parameters['DomoticzVersion'][-4:]
+            Domoticz.Log("DomoticzVersion Available " + Parameters['DomoticzVersion'])
+            Revision = Parameters['DomoticzVersion'].split(".")[1]
         else:
             Domoticz.Log("DomoticzVersion Not Available - Using JSON")
             url = 'http://127.0.0.1:' + Parameters['Mode2'] + '/json.htm?type=command&param=getversion'
