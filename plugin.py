@@ -18,9 +18,13 @@
 import Domoticz
 import json
 import math
-from urllib.request import Request, urlopen
-from urllib.parse import urlencode
-from urllib.error import HTTPError
+try:
+    from urllib.request import Request, urlopen
+    from urllib.parse import urlencode
+    from urllib.error import HTTPError
+except ImportError as L_err:
+    print("ImportError: {0}".format(L_err))
+    raise L_err
 
 class BasePlugin:
     enabled = False
