@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.6(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.7(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
