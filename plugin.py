@@ -445,11 +445,15 @@ class BasePlugin:
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
                             Domoticz.Debug("State: " + Devices[unit].sValue + " -> " + node["attributes"]["state"]["targetValue"])
                             if node["attributes"]["state"]["targetValue"] == "OFF":
-                                if Devices[unit].nValue != 0:
+                                if Devices[unit].nValue != 0: # Device not already off
                                     if self.TimedOutAvailable:
                                         Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
                                     else:
                                         Devices[unit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                                else: # Device is already off but could have been timed out
+                                    if self.TimedOutAvailable:
+                                        if Devices[unit].TimedOut:
+                                            Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
                             else:
                                 Domoticz.Debug("Brightness Target: " + str(Devices[unit].LastLevel))
                                 Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["targetValue"]))
