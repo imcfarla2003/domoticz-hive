@@ -14,8 +14,9 @@ Then go to setup and you should be able to choose Hive plugin in the Type dropdo
 - If you are using version 3.8790 or below (older than current stable) you will also need to specify the Domoticz Port and check that password-less access is available (add 127.0.0.1 into the "Local Networks" box on the Settings page) 
 
 Notes: 
+Multizone heating is not yet supported (waiting for an output from collect_json.py)
 
-Only works for Active Light Dimmable and Colour Changing lights as I haven't got any Cool to Warm (yet).
+Works for Active Light Dimmable, Cool to Warm and Colour Changing lights now.
 
 ActivePlug is now working.
 
