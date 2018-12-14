@@ -155,6 +155,7 @@ class BasePlugin:
             d = self.GetDevices()
             self.UpdateDeviceState(d)
             if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
+                foundOutsideDevice = False
                 w = self.GetWeatherURL()
                 if w != False:
                     outsidetemp = w["temperature"]["value"]
