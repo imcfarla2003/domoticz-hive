@@ -306,10 +306,6 @@ class BasePlugin:
         return nextUnit
 
     def UpdateDeviceState(self, d):
-        foundInsideDevice = False
-        foundTargetDevice = False
-        foundHeatingDevice = False
-        foundThermostatDevice = False
         foundHotWaterDevice = False
         foundOutsideDevice = False
 
@@ -317,6 +313,10 @@ class BasePlugin:
         thermostats = self.GetThermostat(d, 'Heating')
         if thermostats:
             for node in thermostats:
+                foundInsideDevice = False
+                foundTargetDevice = False
+                foundHeatingDevice = False
+                foundThermostatDevice = False
                 # get the temperature and heating states
                 temp = node["attributes"]["temperature"]["reportedValue"]
                 Domoticz.Debug('Temp = ' + str(temp))
