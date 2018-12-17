@@ -252,7 +252,7 @@ class BasePlugin:
             for i in x:
                 if k in i['attributes']:
                     if thermostats:
-                        thermostats += i
+                        thermostats.append(i)
                     else:
                         thermostats = [i]
         return thermostats
