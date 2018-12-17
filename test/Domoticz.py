@@ -1,19 +1,22 @@
+import sys
 Devices = {}
 debugLevel = 0
+# this is a pointer to the module object instance itself.
+this = sys.modules[__name__]
 
 def Log(message):
     print("Log: " + message)
 
 def Debug(message):
-    if debugLevel > 0:
+    if this.debugLevel > 0:
         print("Debug: " + message)
 
 def Error(message):
     print("Error: " + message)
 
 def Debugging(level):
-    debugLevel = level
-    print("Debug Level: " + str(debugLevel))
+    this.debugLevel = level
+    print("Debug Level: " + str(this.debugLevel))
 
 class Device:
     DeviceID = ''
