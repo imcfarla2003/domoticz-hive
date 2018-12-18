@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla,MikeF and roadsnail" version="0.8(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
@@ -372,26 +372,26 @@ class BasePlugin:
                                              BatteryLevel = int(thermostat_battery), 
                                              SignalLevel = int(thermostat_rssi))
                 if foundInsideDevice == False:
-                    Domoticz.Device(Name = node["name"] + ' - Current', 
+                    Domoticz.Device(Name = thermostatui["name"] + ' - Current',
                                     Unit = self.GetNextUnit(False), 
                                     TypeName = 'Temperature', 
                                     DeviceID = node["name"]+'_Current').Create()
                     self.counter = self.multiplier
                 if foundTargetDevice == False:
-                    Domoticz.Device(Name = node["name"] + ' - Target', 
+                    Domoticz.Device(Name = thermostatui["name"] + ' - Target',
                                     Unit = self.GetNextUnit(False), 
                                     TypeName = 'Temperature', 
                                     DeviceID = node["name"]+'_Target').Create()
                     self.counter = self.multiplier
                 if foundHeatingDevice == False:
-                    Domoticz.Device(Name = node["name"] + ' - Heating', 
+                    Domoticz.Device(Name = thermostatui["name"] + ' - Heating',
                                     Unit = self.GetNextUnit(False), 
                                     TypeName = 'Switch', 
                                     Switchtype = 0, 
                                     DeviceID = node['id']).Create()
                     self.counter = self.multiplier
                 if foundThermostatDevice == False:
-                    Domoticz.Device(Name = node["name"] + ' - Thermostat', 
+                    Domoticz.Device(Name = thermostatui["name"] + ' - Thermostat',
                                     Unit = self.GetNextUnit(False), 
                                     Type = 242,
                                     Subtype = 1, 
