@@ -1,5 +1,20 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+    <description>
+        <h2>Hive Plugin</h2>
+        <h3>Features</h3>
+        <ul style="list-style-type:square">
+            <li>Thermostats (including multizone)</li>
+            <li>Active lights</li>
+            <li>Warm to Cool lights</li>
+            <li>Colour lights</li>
+            <li>Activeplugs</li>
+        </ul>
+        <h3>To Do</h3>
+        <ul style="list-style-type:square">
+            <li>Allow to choose the heating mode from boost, scheduled, manual and off</li>
+        </ul>
+    </description>
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
