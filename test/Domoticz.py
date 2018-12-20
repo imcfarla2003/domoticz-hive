@@ -19,6 +19,7 @@ def Debugging(level):
     print("Debug Level: " + str(this.debugLevel))
 
 class Device:
+    ID = 0
     DeviceID = ''
     Type = ''
     Subtype = ''
@@ -32,17 +33,26 @@ class Device:
         self.DeviceID = DeviceID
         self.Type = Type
         self.Subtype = Subtype
+        if TypeName == "Switch":
+            self.Type = 244
+            self.Subtype = 73
+        elif TypeName == "Temperature":
+            self.Type = 247
+            self.Subtype = 5
+        else:
+           pass 
         self.Name = Name
         if debugLevel > 0:
             print("New Device: " + self.DeviceID)
 
     def Create(self):
-        Devices[len(Devices)+1] = self
+        self.ID = len(Devices)+1
+        Devices[self.ID] = self
         if debugLevel > 0:
             print("Create Device: " + self.DeviceID)
 
     def Update(self, nValue, sValue, SignalLevel=0, BatteryLevel=0, TimedOut=0):
-        self.sValue = sValue
+        self.sValue = str(sValue)
         self.nValue = nValue
         self.TimedOut = TimedOut
         if debugLevel > 0:

@@ -11,7 +11,7 @@ Parameters["Username"] = sys.argv[1]
 Parameters["Password"] = sys.argv[2]
 Parameters["Mode1"] = 1 #Multiplier
 Parameters["Mode2"] = '8080' #Port
-Parameters["Mode3"] = 'CB1' #Postcode
+Parameters["Mode3"] = 'CB24' #Postcode
 #Parameters["Mode6"] = 'Debug' #Debug
 Parameters["Mode6"] = 'Normal' #No Debug
 Parameters["DomoticzVersion"] = '4.10263' #Domoticz Version
@@ -35,5 +35,6 @@ if len(sys.argv) >3:
         onHeartbeat()
 print("Stopping")
 onStop()
-
+Domoticz.Debugging(1)
+DumpConfigToLog()
 # vim: tabstop=4 expandtab

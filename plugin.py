@@ -600,8 +600,9 @@ class BasePlugin:
         if activeplugs:
             for node in activeplugs:
                 for unit in Devices:
+                    # Active plugs also have internalTemperature, energyConsumed and powerConsumption
                     rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
-                    if node['id'] == Devices[unit].DeviceID:
+                    if node['id'] == Devices[unit].DeviceID and Devices[unit].Type == 244:
                         if unit not in set(self.activeplugsSet):
                             self.activeplugsSet.add(unit)
                         if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
@@ -627,20 +628,38 @@ class BasePlugin:
                                         Devices[unit].Update(nValue=1, sValue='On', TimedOut=0, SignalLevel=int(rssi))
                                     else:
                                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
+                        for unit1 in Devices:
+                            if node['id'] == Devices[unit].DeviceID and Devices[unit1].Type == 247:
+                                Devices[unit1].Update(nValue = 0, sValue = node["attributes"]["internalTemperature"]["reportedValue"])
+                                break
+                        else:
+                            # Create a temperature device to go with the plug
+                            newUnit = self.GetNextUnit(False)
+                            Domoticz.Device(Name = node["name"]+" - Temperature",
+                                            Unit = newUnit,
+                                            TypeName = "Temperature",
+                                            DeviceID = node['id']).Create()
+                            Devices[newUnit].Update(nValue = 0, sValue = node["attributes"]["internalTemperature"]["reportedValue"])
                         break
                 else:
                     Domoticz.Log("ActivePlug not found " + node["name"])
                     newUnit = self.GetNextUnit(False)
                     Domoticz.Device(Name = node["name"], 
-                                    Unit = newUnit, 
-                                    Type=244, 
-                                    Subtype=73, 
-                                    Switchtype=0, 
+                                    Unit = newUnit,
+                                    TypeName = "Switch",
+                                    Switchtype = 0,
                                     DeviceID = node['id']).Create()
                     if node["attributes"]["state"]["reportedValue"] == "OFF":
                         Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                     else:
                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
+                    # Create a temperature device to go with the plug
+                    newUnit = self.GetNextUnit(False)
+                    Domoticz.Device(Name = node["name"]+" - Temperature",
+                                    Unit = newUnit,
+                                    TypeName = "Temperature",
+                                    DeviceID = node['id']).Create()
+                    Devices[newUnit].Update(nValue = 0, sValue = node["attributes"]["internalTemperature"]["reportedValue"])
 
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
