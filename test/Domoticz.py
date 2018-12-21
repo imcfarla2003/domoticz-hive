@@ -37,7 +37,7 @@ class Device:
             self.Type = 244
             self.Subtype = 73
         elif TypeName == "Temperature":
-            self.Type = 247
+            self.Type = 80 
             self.Subtype = 5
         else:
            pass 

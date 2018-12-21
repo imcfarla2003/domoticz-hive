@@ -629,12 +629,13 @@ class BasePlugin:
                                     else:
                                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
                         for unit1 in Devices:
-                            if node['id'] == Devices[unit1].DeviceID and Devices[unit1].Type == 247:
+                            if node['id'] == Devices[unit1].DeviceID and Devices[unit1].Type == 80:
+                                Domoticz.Log("ActivePlug Temperature found " + node["name"]) # TODO reduce this to Debug
                                 Devices[unit1].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
                                 break
                         else:
                             # Create a temperature device to go with the plug
-                            Domoticz.Log("ActivePlug Temperature not found " + node["name"])
+                            Domoticz.Log("ActivePlug Temperature not found " + node["name"]) # TODO Reduce this to Debug
                             newUnit = self.GetNextUnit(False)
                             Domoticz.Device(Name = node["name"]+" - Temperature",
                                             Unit = newUnit,
