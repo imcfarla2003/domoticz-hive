@@ -629,17 +629,18 @@ class BasePlugin:
                                     else:
                                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
                         for unit1 in Devices:
-                            if node['id'] == Devices[unit].DeviceID and Devices[unit1].Type == 247:
+                            if node['id'] == Devices[unit1].DeviceID and Devices[unit1].Type == 247:
                                 Devices[unit1].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
                                 break
                         else:
                             # Create a temperature device to go with the plug
+                            Domoticz.Log("ActivePlug Temperature not found " + node["name"])
                             newUnit = self.GetNextUnit(False)
                             Domoticz.Device(Name = node["name"]+" - Temperature",
                                             Unit = newUnit,
                                             TypeName = "Temperature",
                                             DeviceID = node['id']).Create()
-                            Devices[newUnit].Update(nValue = 0, sValue = node["attributes"]["internalTemperature"]["reportedValue"])
+                            Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
                         break
                 else:
                     Domoticz.Log("ActivePlug not found " + node["name"])
@@ -659,7 +660,7 @@ class BasePlugin:
                                     Unit = newUnit,
                                     TypeName = "Temperature",
                                     DeviceID = node['id']).Create()
-                    Devices[newUnit].Update(nValue = 0, sValue = node["attributes"]["internalTemperature"]["reportedValue"])
+                    Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
 
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
