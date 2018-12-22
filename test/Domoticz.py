@@ -52,7 +52,7 @@ class Device:
             print("Create Device: " + self.DeviceID)
 
     def Update(self, nValue, sValue, SignalLevel=0, BatteryLevel=0, TimedOut=0):
-        self.sValue = str(sValue)
+        self.sValue = sValue
         self.nValue = nValue
         self.TimedOut = TimedOut
         if debugLevel > 0:
