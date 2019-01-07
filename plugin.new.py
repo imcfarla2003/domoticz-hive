@@ -930,7 +930,7 @@ class Buffer:
         self.buffer[self.tail_index] = value
         self.tail_index = (self.tail_index + 1) % self.capacity
         self.size += 1
-        Domoticz.Log("Buffer Size: "+str(self.size))
+        Domoticz.Debug("Buffer Size: "+str(self.size))
     
     def pop_element(self):
         if self.size == 0:
@@ -938,7 +938,7 @@ class Buffer:
         ret = self.buffer[self.head_index]
         self.head_index = (self.head_index + 1) % self.capacity
         self.size -= 1
-        Domoticz.Log("Buffer Size: "+str(self.size))
+        Domoticz.Debug("Buffer Size: "+str(self.size))
         return ret
 
     def peek_head(self):
