@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -18,14 +18,17 @@
     <params>
         <param field="Username" label="Hive Username" width="200px" required="true" default=""/>
         <param field="Password" label="Hive Password" width="200px" required="true" default=""/>
-        <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="1"/>
-        <param field="Mode2" label="Domoticz Port - only needed prior to version 3.8791" width="40px" required="false" default="8080"/>
+        <param field="Mode1" label="Heartbeat Multiplier" width="30px" required="true" default="6"/>
         <param field="Mode3" label="Postcode" width="100px" required="false" default=""/>
-        <param field="Mode6" label="Debug" width="75px">
+        <param field="Mode6" label="Debug" width="150px">
             <options>
-                <option label="True" value="Debug"/>
-                <option label="False" value="Normal"  default="true" />
-            </options>
+                <option label="None" value="0"  default="true" />
+                <option label="Python Only" value="2"/>
+                <option label="Basic Debugging" value="62"/>
+                <option label="Basic+Messages" value="126"/>
+                <option label="Connections Only" value="16"/>
+                <option label="Connections+Queue" value="144"/>
+                <option label="All" value="-1"/></options>
         </param>
     </params>
 </plugin>
@@ -33,9 +36,7 @@
 try:
     import json
     import math
-    from urllib.request import Request, urlopen
     from urllib.parse import urlencode
-    from urllib.error import HTTPError
     import Domoticz
 except ImportError as L_err:
     print("ImportError: {0}".format(L_err))
@@ -52,118 +53,153 @@ class BasePlugin:
         self.activeplugsSet = set()
         self.hwrelaySet = set()
         self.chrelaySet = set()
-        self.TimedOutAvailable = False
+        self.TimedOutAvailable = True
+        self.httpConn = False
+        self.deviceConn = False
+        self.deviceUpdateConn = False
+        self.weatherConn = False
+        self.sessionHost = 'api.prod.bgchprod.info' 
+        self.deviceHost = 'api.prod.bgchprod.info'
+        self.weatherHost = 'weather.prod.bgchprod.info'
+        self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
+            'Accept': 'application/vnd.alertme.zoo-6.2+json', 
+            'X-AlertMe-Client': 'Hive Web Dashboard',
+            'Host':self.sessionHost}
+        self.weatherHeaders = {}
+        self.deviceUpdate = False
     
     def onStart(self):
         Domoticz.Log('Starting')
-        if Parameters["Mode6"] == "Debug":
-            Domoticz.Debugging(1)
-        if int(self.getDomoticzRevision()) >= 8651: 
-            # Devices[unit].TimedOut only appears in Revision >= 8651
-            self.TimedOutAvailable = True
-            Domoticz.Log("TimedOut available")
-        else:
-            Domoticz.Log("TimedOut not available: " + self.getDomoticzRevision())
+        if Parameters["Mode6"] != "0":
+            if Parameters["Mode6"] == "Normal":
+                Domoticz.Debugging(0)
+            if Parameters["Mode6"] == "Debug":
+                Domoticz.Debugging(-1)
+            Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
-        self.counter = self.multiplier # update immediately
-        if self.sessionId == '':
-            Domoticz.Log('Creating Session')
-            self.GetSessionID()
-        Domoticz.Debug(self.sessionId)
-        self.onHeartbeat()
-
+        self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
+        if int(self.getDomoticzRevision()) < 9030: 
+            Domoticz.Log("SNI connections are only available in Revision >= 9030.  This plugin will not work")
+        else:
+            self.httpConn = Domoticz.Connection(Name="Hive Session", Transport="TCP/IP", Protocol="HTTPS", Address=self.sessionHost, Port="443")
+            self.httpConn.Connect() # Get a SessionId
+            self.deviceConn = Domoticz.Connection(Name="Hive Devices", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
+            self.deviceUpdateConn = Domoticz.Connection(Name="Hive Device Update", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
+            self.weatherConn = Domoticz.Connection(Name="Hive Weather", Transport="TCP/IP", Protocol="HTTPS", Address=self.weatherHost, Port="443")
+ 
     def onStop(self):
+        return
+        # TODO: This does not work!
         Domoticz.Log('Deleting Session')
-        headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 
-                   'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                   'X-AlertMe-Client': 'Hive Web Dashboard', 
-                   'X-Omnia-Access-Token': self.sessionId }
-        url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions/' + self.sessionId
-        req = Request(url, headers = headers)
-        req.get_method = lambda : 'DELETE'
-        try:
-            r = urlopen(req).read()
-        except Exception as e:
-            Domoticz.Log(str(e))
+        url = '/omnia/auth/sessions/' + self.sessionId
+        self.httpConn.Connect()
+        self.httpConn.Send({'Verb':'DELETE','URL':url,'Headers':self.headers})
+        self.httpConn.Disconnect()
     
     def onConnect(self, Connection, Status, Description):
-        Domoticz.Debug('onConnect called')
-    
-    def onMessage(self, Connection, Data, Status, Extra):
-        Domoticz.Debug('onMessage called')
-    
+        Domoticz.Debug('onConnect called for ' + Connection.Name)
+        if (Connection.Name == 'Hive Session'):
+            if self.sessionId == '':
+                Domoticz.Debug('Creating Session')
+                payload = {'sessions':[{'username':Parameters["Username"],'password':Parameters["Password"],'caller': 'WEB'}]}
+                url = '/omnia/auth/sessions'
+                data = json.dumps(payload).encode('ascii')
+                Domoticz.Debug(str(data))
+                Connection.Send({'Verb':'POST','URL':url,'Headers':self.headers,'Data':data})
+        if (Connection.Name == 'Hive Devices'):
+            Domoticz.Debug('Getting Devices')
+            url = '/omnia/nodes'
+            Connection.Send({'Verb':'GET','URL':url,'Headers':self.headers})
+        if (Connection.Name == 'Hive Device Update'):
+            url = '/omnia/nodes'
+            while (self.deviceUpdate.get_size() > 0):
+                Domoticz.Debug('Updating Device')
+                deviceUpdate = self.deviceUpdate.pop_element()
+                self.updateDevice(deviceUpdate['Unit'],deviceUpdate['Command'],deviceUpdate['Level'],deviceUpdate['Hue'], Connection, url)
+        if (Connection.Name == 'Hive Weather'):
+            Domoticz.Debug('Getting Weather')
+            pc = str(Parameters['Mode3'])
+            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
+            url = '/weather?postcode=' +str(pc) + '&country=GB'
+            Connection.Send({'Verb':'GET','URL':url,'Headers':self.weatherHeaders})
+ 
+    def onMessage(self, Connection, Data):
+        Domoticz.Debug('onMessage called for ' + Connection.Name)
+        if (Connection.Name == 'Hive Session'):
+            if (Data['Status'] == '200'):
+                r = Data['Data'].decode('UTF-8')
+                self.sessionId = json.loads(r)["sessions"][0]['sessionId']
+                Domoticz.Debug(self.sessionId)
+                self.httpConn.Disconnect()
+                self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                    'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                    'X-AlertMe-Client': 'Hive Web Dashboard', 
+                    'X-Omnia-Access-Token': self.sessionId,
+                    'Host':self.deviceHost}
+                self.weatherHeaders = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                    'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                    'X-AlertMe-Client': 'Hive Web Dashboard', 
+                    'X-Omnia-Access-Token': self.sessionId,
+                    'Host':self.weatherHost}
+                self.deviceConn.Connect() # Update the devices now
+        if (Connection.Name == 'Hive Devices'):
+            if (Data['Status'] == '200'):
+                r = Data['Data'].decode('UTF-8')
+                nodes = json.loads(r)['nodes']
+                self.deviceConn.Disconnect()
+                self.UpdateDeviceState(nodes)
+            else:
+                # Bad session?
+                self.httpConn.Connect()
+        if (Connection.Name == 'Hive Device Update'):
+            # The return data from a device update will only contain the info for that device
+            if (Data['Status'] == '200'):
+                r = Data['Data'].decode('UTF-8')
+                nodes = json.loads(r)['nodes']
+                self.deviceUpdateConn.Disconnect()
+                self.UpdateDeviceState(nodes)
+            else:
+                Domoticz.Error("Update Device Failed")
+        if (Connection.Name == 'Hive Weather'):
+            if (Data['Status'] == '200'):
+                r = Data['Data'].decode('UTF-8')
+                try:
+                    w = json.loads(r)['weather']
+                    outsidetemp = w["temperature"]["value"]
+                except Exception as e:
+                    w = False
+                    Domoticz.Error(str(e))
+                try:
+                    Domoticz.Debug("Finding Outside Device")
+                    foundOutsideDevice = False
+                    for unit in Devices:
+                        if Devices[unit].DeviceID == "Hive_Outside":
+                            Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                            foundOutsideDevice = True
+                            Domoticz.Debug("Outside Device Updatedd")
+
+                    if foundOutsideDevice == False:
+                        newUnit = self.GetNextUnit(False)
+                        Domoticz.Device(Name = 'Outside',
+                                        Unit = newUnit,
+                                        TypeName = 'Temperature',
+                                        DeviceID = 'Hive_Outside').Create()
+                        Domoticz.Debug("Outside Device Created: " + str(newUnit))
+                        Devices[newUnit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                except Exception as e:
+                    Domoticz.Error(str(e))
+                Connection.Disconnect()
+
     def onCommand(self, Unit, Command, Level, Hue):
-        Domoticz.Log('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-        Domoticz.Debug(str(Devices[Unit].Type))
-        Domoticz.Debug(str(Devices[Unit].SubType))
-        Domoticz.Debug(Devices[Unit].DeviceID)
-        Domoticz.Debug(str(Devices[Unit].sValue))
-        payload = ""
-        if self.isLight(Unit):
-            Domoticz.Log("Setting Light Parameters")
-            if str(Command) == "Set Level":
-                payload = self.CreateLightPayload("ON", Level)
-            if str(Command) == "On":
-                payload = self.CreateLightPayload("ON", Devices[Unit].LastLevel)
-            if str(Command) == "Off":
-                payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
-            if str(Command) == "Set Color":
-                Domoticz.Debug(Hue)
-                colourDict = json.loads(Hue)
-                colourMode = colourDict.get("m")
-                if colourMode == 2:
-                    # white temp
-                    colourTemp = 6533-(colourDict.get("t")*15)
-                    Domoticz.Debug(str(colourTemp))
-                    payload = self.CreateLightPayload("ON", Level, "TUNABLE", colourTemp)
-                elif colourMode == 3:
-                    # rgb colour
-                    h, s, v = rgb2hsv(colourDict.get("r"),colourDict.get("g"),colourDict.get("b"))
-                    Domoticz.Debug(str(h) + " " + str(s) + " " +str(v))
-                    payload = self.CreateLightPayload("ON", Level, "COLOUR", h, s)
-                else:
-                   Domoticz.Log("Colour Mode not supported: " + str(colourMode))
-        elif self.isThermostat(Unit):
-            Domoticz.Log("Setting Thermostat Level")
-            payload = self.CreateThermostatPayload(Level)
-        elif self.isActivePlug(Unit):
-            Domoticz.Log("Setting ActivePlug State")
-            if str(Command) == "On":
-                payload = self.CreateActivePlugPayload("ON")
-            if str (Command) == "Off":
-                payload = self.CreateActivePlugPayload("OFF")
-        elif self.isHotWaterRelay(Unit):
-            Domoticz.Log("Setting Hot Water Relay State")
-            if str(Command) == "On":
-                payload = self.CreateHotWaterPayload("HEAT") # Android APP Shows as On
-            if str(Command) == "Off":
-                payload = self.CreateHotWaterPayload("OFF") # Android APP shows as Off
-        elif self.isCentralHeatingRelay(Unit):
-            Domoticz.Log("Setting Central Heating Relay State")
-            if str(Command) == "On":
-                payload = self.CreateCentralHeatingPayload("HEAT") # Android APP Shows as Manual (Governed by Thermostat setting)
-            if str(Command) == "Off":
-                payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
+        Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        if(self.deviceUpdateConn.Connected()):
+            Domoticz.Debug("Already connected so updateDevice")
+            self.updateDevice(Unit, Command, Level, Hue, self.deviceUpdateConn)
         else:
-            Domoticz.Log("Unknown Device Type")
-        if payload != "":
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                       'X-AlertMe-Client': 'swagger', 
-                       'X-Omnia-Access-Token': self.sessionId}
-            url = 'https://api.prod.bgchprod.info:443/omnia/nodes/' + Devices[Unit].DeviceID
-            req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
-            req.get_method = lambda : 'PUT'
-            try:
-                r = urlopen(req).read().decode('utf-8')
-                # Process the update sent back from Hive
-                d = json.loads(r)['nodes']
-                self.UpdateDeviceState(d)
-            except Exception as e:
-                Domoticz.Log(str(e))
-        else:
-            Domoticz.Log(str(Command) + " not handled")
-    
+            self.deviceUpdate.push_element({'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue})
+            if(self.deviceUpdateConn.Connecting() == False):
+                self.deviceUpdateConn.Connect()
+
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Debug('Notification: ' + Name + ',' + Subject + ',' + Text + ',' + Status + ',' + str(Priority) + ',' + Sound + ',' + ImageFile)
     
@@ -175,156 +211,13 @@ class BasePlugin:
         if self.counter >= self.multiplier:
             Domoticz.Debug('Getting Data')
             self.counter = 1
-            d = self.GetDevices()
-            self.UpdateDeviceState(d)
-            if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
-                foundOutsideDevice = False
-                w = self.GetWeatherURL()
-                if w != False:
-                    outsidetemp = w["temperature"]["value"]
-    
-                    for unit in Devices:
-                        if Devices[unit].DeviceID == "Hive_Outside":
-                            Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
-                            foundOutsideDevice = True
-    
-                    if foundOutsideDevice == False:
-                        Domoticz.Device(Name = 'Outside', 
-                                        Unit = self.GetNextUnit(False), 
-                                        TypeName = 'Temperature', 
-                                        DeviceID = 'Hive_Outside').Create()
-                        self.counter = self.multiplier
-
+            self.deviceConn.Connect()
+            if Parameters["Mode3"] != "":
+                Domoticz.Debug('Getting Weather')
+                self.weatherConn.Connect()
         else:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
-
-    def GetSessionID(self):
-            payload = {'sessions':[{'username':Parameters["Username"], 'password':Parameters["Password"]}]}
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                       'X-AlertMe-Client': 'Hive Web Dashboard'}
-            url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
-            req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
-            r = urlopen(req).read().decode('utf-8')
-            self.sessionId = json.loads(r)["sessions"][0]['sessionId']
-
-    def GetWeatherURL(self):
-            weather = False
-            pc = str(Parameters['Mode3'])
-            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
-            wurl = 'https://weather.prod.bgchprod.info/weather?postcode=' +str(pc) + '&country=GB'
-            wreq = Request(wurl)
-
-            try:
-                weather = urlopen(wreq).read().decode('utf-8')
-            except HTTPError as e:
-                if e.code == 401: # Unauthorised - need new sessionId
-                    self.onStop()
-                    self.GetSessionID()
-                    weather = urlopen(wreq).read().decode('utf-8')
-                else:
-                    Domoticz.Log(str(e))
-            except Exception as e:
-                Domoticz.Log(str(e))
-            try:
-                weather = json.loads(weather)['weather'] # get weather Object from the url response into a string for later	then return		
-            except Exception as e:
-                Domoticz.Log(str(e))
-            return weather
-
-    def GetDevices(self):
-            nodes = False
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                       'X-AlertMe-Client': 'swagger', 
-                       'X-Omnia-Access-Token': self.sessionId}
-            url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
-            req = Request(url, headers = headers, unverifiable = True)
-            try:
-                r = urlopen(req).read().decode('utf-8')
-            except HTTPError as e:
-                if e.code == 401: # Unauthorised - need new sessionId
-                    self.onStop()
-                    self.GetSessionID()
-                    r = urlopen(req).read().decode('utf-8')
-                else:
-                    Domoticz.Log(str(e))
-            except Exception as e:
-                Domoticz.Log(str(e))
-            try:
-                nodes = json.loads(r)['nodes']
-            except Exception as e:
-                Domoticz.Log(str(e))
-            return nodes
-
-    def GetThermostat(self, d, ttype):
-        #ttype can be 'Heating' or 'HotWater'
-        thermostats = False
-        k = 'state'+ttype+'Relay'
-        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostat.json#')
-        if x:
-            for i in x:
-                if k in i['attributes']:
-                    if thermostats:
-                        thermostats.append(i)
-                    else:
-                        thermostats = [i]
-        return thermostats
-
-    def GetThermostatUI(self, d, parentNodeId):
-        thermostatui = False
-        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostatui.json#')
-        if not x: # Try a Hive2 thermostat
-            x = find_key_in_list(d,"Hive2")
-        if x:
-            for i in x:
-                try:
-                    if i["relationships"]["boundNodes"][0]["id"] == parentNodeId:
-                        thermostatui = i
-                except Exception as e:
-                    Domoticz.Debug("Thermostatui - No boundNodes under relationship")
-        if len(x) == 1:
-            Domoticz.Debug("Only one thermostatui node so using that")
-            thermostatui = x[0]
-        return thermostatui
-
-    def GetLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetTunableLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.tunable.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetColourLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetActivePlugs(self, d):
-        activeplugs = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
-        if x:
-            activeplugs = x
-        return activeplugs
-
-    def GetNextUnit(self, unit):
-        if not unit:
-            nextUnit = len(Devices) + 1
-        else:
-            nextUnit = unit +1
-        if nextUnit in Devices or nextUnit <= 1:
-            nextUnit = self.GetNextUnit(nextUnit)
-        return nextUnit
 
     def UpdateDeviceState(self, d):
         foundHotWaterDevice = False
@@ -340,6 +233,8 @@ class BasePlugin:
                 foundTargetDevice = False
                 foundHeatingDevice = False
                 foundThermostatDevice = False
+                thermostat_battery = 0
+                thermostat_rssi = 0
                 # get the temperature and heating states
                 temp = node["attributes"]["temperature"]["reportedValue"]
                 Domoticz.Debug('Temp = ' + str(temp))
@@ -665,6 +560,133 @@ class BasePlugin:
                                     DeviceID = node['id']).Create()
                     Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
 
+    def updateDevice(self, Unit, Command, Level, Hue, Connection, url = "/omnia/nodes"):
+        Domoticz.Debug('updateDevice called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        Domoticz.Debug(str(Devices[Unit].Type))
+        Domoticz.Debug(str(Devices[Unit].SubType))
+        Domoticz.Debug(Devices[Unit].DeviceID)
+        Domoticz.Debug(str(Devices[Unit].sValue))
+        payload = ""
+        if self.isLight(Unit):
+            Domoticz.Log("Setting Light Parameters")
+            if str(Command) == "Set Level":
+                payload = self.CreateLightPayload("ON", Level)
+            if str(Command) == "On":
+                payload = self.CreateLightPayload("ON", Devices[Unit].LastLevel)
+            if str(Command) == "Off":
+                payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
+            if str(Command) == "Set Color":
+                Domoticz.Debug(Hue)
+                colourDict = json.loads(Hue)
+                colourMode = colourDict.get("m")
+                if colourMode == 2:
+                    # white temp
+                    colourTemp = 6533-(colourDict.get("t")*15)
+                    Domoticz.Debug(str(colourTemp))
+                    payload = self.CreateLightPayload("ON", Level, "TUNABLE", colourTemp)
+                elif colourMode == 3:
+                    # rgb colour
+                    h, s, v = rgb2hsv(colourDict.get("r"),colourDict.get("g"),colourDict.get("b"))
+                    Domoticz.Debug(str(h) + " " + str(s) + " " +str(v))
+                    payload = self.CreateLightPayload("ON", Level, "COLOUR", h, s)
+                else:
+                   Domoticz.Log("Colour Mode not supported: " + str(colourMode))
+        elif self.isThermostat(Unit):
+            Domoticz.Log("Setting Thermostat Level")
+            payload = self.CreateThermostatPayload(Level)
+        elif self.isActivePlug(Unit):
+            Domoticz.Log("Setting ActivePlug State")
+            if str(Command) == "On":
+                payload = self.CreateActivePlugPayload("ON")
+            if str (Command) == "Off":
+                payload = self.CreateActivePlugPayload("OFF")
+        elif self.isHotWaterRelay(Unit):
+            Domoticz.Log("Setting Hot Water Relay State")
+            if str(Command) == "On":
+                payload = self.CreateHotWaterPayload("HEAT") # Android APP Shows as On
+            if str(Command) == "Off":
+                payload = self.CreateHotWaterPayload("OFF") # Android APP shows as Off
+        elif self.isCentralHeatingRelay(Unit):
+            Domoticz.Log("Setting Central Heating Relay State")
+            if str(Command) == "On":
+                payload = self.CreateCentralHeatingPayload("HEAT") # Android APP Shows as Manual (Governed by Thermostat setting)
+            if str(Command) == "Off":
+                payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
+        else:
+            Domoticz.Log("Unknown Device Type")
+            payload = ""
+        if payload != "":
+            data = json.dumps(payload)
+            Connection.Send({'Verb':'PUT','URL':url + '/'+Devices[Unit].DeviceID,'Headers':self.headers,'Data':data})
+    
+    def GetThermostat(self, d, ttype):
+        #ttype can be 'Heating' or 'HotWater'
+        thermostats = False
+        k = 'state'+ttype+'Relay'
+        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostat.json#')
+        if x:
+            for i in x:
+                if k in i['attributes']:
+                    if thermostats:
+                        thermostats.append(i)
+                    else:
+                        thermostats = [i]
+        return thermostats
+
+    def GetThermostatUI(self, d, parentNodeId):
+        thermostatui = False
+        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostatui.json#')
+        if not x: # Try a Hive2 thermostat
+            x = find_key_in_list(d,"Hive2")
+        if x:
+            for i in x:
+                try:
+                    if i["relationships"]["boundNodes"][0]["id"] == parentNodeId:
+                        thermostatui = i
+                except Exception as e:
+                    Domoticz.Debug("Thermostatui - No boundNodes under relationship")
+        if len(x) == 1:
+            Domoticz.Debug("Only one thermostatui node so using that")
+            thermostatui = x[0]
+        return thermostatui
+
+    def GetLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetTunableLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetColourLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetActivePlugs(self, d):
+        activeplugs = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
+        if x:
+            activeplugs = x
+        return activeplugs
+
+    def GetNextUnit(self, unit):
+        if not unit:
+            nextUnit = len(Devices) + 1
+        else:
+            nextUnit = unit +1
+        if nextUnit in Devices or nextUnit <= 1:
+            nextUnit = self.GetNextUnit(nextUnit)
+        return nextUnit
+
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
         # brightness 0->100
@@ -695,7 +717,7 @@ class BasePlugin:
             colourTemperature["targetValue"] = ColourTemperature
             attributes["attributes"] = {"brightness":brightness,"state":state,"colourMode":colourMode,"colourTemperature":colourTemperature}
         nodes.append(attributes)
-        response["nodes"] = nodes
+        response["nodes"] = nodes 
         return response
 
     def CreateThermostatPayload(self, Temperature):
@@ -746,7 +768,7 @@ class BasePlugin:
             attributes["attributes"] = {"activeHeatCoolMode": {"targetValue": "OFF"},"activeScheduleLock": {"targetValue": "False"}}
         nodes.append(attributes)
         response["nodes"] = nodes
-        return response
+        return response    
 
     def isLight(self, Unit):
         Domoticz.Debug(str(self.lightsSet))
@@ -769,14 +791,12 @@ class BasePlugin:
             return False
 
     def isActivePlug(self, Unit):
-        Domoticz.Debug(str(self.activeplugsSet))
         if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.activeplugsSet:
             return True
         else:
             return False
 
     def isHotWaterRelay(self, Unit):
-        Domoticz.Debug(str(self.hwrelaySet))
         if Unit in self.hwrelaySet:
             return True
         else:
@@ -790,31 +810,10 @@ class BasePlugin:
             return False
 
     def getDomoticzRevision(self):
-        Revision = 0
+        Revision = 8650 #Min version that supports all the features required -1
         if 'DomoticzVersion' in Parameters:
-            Domoticz.Log("DomoticzVersion Available " + Parameters['DomoticzVersion'])
+            Domoticz.Log("DomoticzVersion Available")
             Revision = Parameters['DomoticzVersion'].split(".")[1]
-        else:
-            Domoticz.Log("DomoticzVersion Not Available - Using JSON")
-            url = 'http://127.0.0.1:' + Parameters['Mode2'] + '/json.htm?type=command&param=getversion'
-            Domoticz.Log("Version URL: " + url)
-            req = Request(url)
-            try:
-                r = urlopen(req).read().decode('utf-8')
-                j = json.loads(r)
-                Revision = j['Revision']
-                Version = j['version']
-                Domoticz.Debug("Domoticz Revision: " + str(Revision))
-                Domoticz.Debug("Domoticz Version: " + Version + '->' + str(int(Version[-4:])))
-                if int(Version[-4:]) > Revision:  # I've managed to create a build that has Version different to Revision so take the highest
-                    Revision = int(Version[-4:])
-            except HTTPError as e:
-                if e.code == 401:
-                    Domoticz.Error("Ensure you have 127.0.0.1 in your 'Local Networks' selection")
-                else:
-                    Domoticz.Error(str(e))
-            except Exception as e:
-                Domoticz.Error(str(e))
         Domoticz.Debug("Domoticz Revision: " + str(Revision))
         return Revision
 
@@ -829,8 +828,8 @@ def onStop():
 def onConnect(Connection, Status, Description):
     _plugin.onConnect(Connection, Status, Description)
 
-def onMessage(Connection, Data, Status, Extra):
-    _plugin.onMessage(Connection, Data, Status, Extra)
+def onMessage(Connection, Data):
+    _plugin.onMessage(Connection, Data)
 
 def onCommand(Unit, Command, Level, Hue):
     _plugin.onCommand(Unit, Command, Level, Hue)
@@ -856,6 +855,17 @@ def DumpConfigToLog():
         Domoticz.Debug('Device nValue:    ' + str(Devices[x].nValue))
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug('Device LastLevel: ' + str(Devices[x].LastLevel))
+
+def DumpHTTPResponseToLog(httpDict):
+    if isinstance(httpDict, dict):
+        Domoticz.Log("HTTP Details ("+str(len(httpDict))+"):")
+        for x in httpDict:
+            if isinstance(httpDict[x], dict):
+                Domoticz.Log("--->'"+x+" ("+str(len(httpDict[x]))+"):")
+                for y in httpDict[x]:
+                    Domoticz.Log("------->'" + y + "':'" + str(httpDict[x][y]) + "'")
+            else:
+                Domoticz.Log("--->'" + x + "':'" + str(httpDict[x]) + "'")
 
 def find_key_in_list(d, value):
     if isinstance(d, list):
@@ -906,4 +916,43 @@ def rgb2hsv(r, g, b):
     v = mx
     return h, s, v
 
+class Buffer:
+    def __init__(self, capacity):
+        self.buffer = [0] * capacity
+        self.size = 0
+        self.capacity = capacity
+        self.head_index = 0
+        self.tail_index = 0
+
+    def push_element(self, value):
+        if self.size == self.capacity:
+            raise Exception('The buffer is full.')
+        self.buffer[self.tail_index] = value
+        self.tail_index = (self.tail_index + 1) % self.capacity
+        self.size += 1
+        Domoticz.Debug("Buffer Size: "+str(self.size))
+    
+    def pop_element(self):
+        if self.size == 0:
+            raise Exception('Popping from an empty buffer.')
+        ret = self.buffer[self.head_index]
+        self.head_index = (self.head_index + 1) % self.capacity
+        self.size -= 1
+        Domoticz.Debug("Buffer Size: "+str(self.size))
+        return ret
+
+    def peek_head(self):
+        if self.size == 0:
+            raise Exception('Peeking into an empty buffer.')
+        return self.buffer[self.head_index]
+
+    def peek_tail(self):
+        if self.size == 0:
+            raise Exception('Peeking into an empty buffer.')
+        return self.buffer[self.tail_index]
+
+    def get_size(self):
+        return self.size
+
 # vim: tabstop=4 expandtab
+
