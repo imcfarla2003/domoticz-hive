@@ -189,7 +189,8 @@ class BasePlugin:
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
         if(self.deviceUpdateConn.Connected()):
-            self.updateDevice(Unit,Command,Level,Hue,self.deviceUpdateConn)
+            Domoticz.Debug("Already connected so updateDevice")
+            self.updateDevice(Unit, Command, Level, Hue, self.deviceUpdateConn)
         else:
             self.deviceUpdate.push_element({'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue})
             if(self.deviceUpdateConn.Connecting() == False):
@@ -553,7 +554,7 @@ class BasePlugin:
                                     DeviceID = node['id']).Create()
                     Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
 
-    def updateDevice(self, Unit, Command, Level, Hue, Connection, url):
+    def updateDevice(self, Unit, Command, Level, Hue, Connection, url = "/omnia/nodes"):
         Domoticz.Debug('updateDevice called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
         Domoticz.Debug(str(Devices[Unit].Type))
         Domoticz.Debug(str(Devices[Unit].SubType))
@@ -610,7 +611,7 @@ class BasePlugin:
             payload = ""
         if payload != "":
             data = json.dumps(payload)
-            Connection.Send({'Verb':'PUT','URL':url + '/Devices[Unit].DeviceID','Headers':self.headers,'Data':data})
+            Connection.Send({'Verb':'PUT','URL':url + '/'+Devices[Unit].DeviceID,'Headers':self.headers,'Data':data})
     
     def GetThermostat(self, d, ttype):
         #ttype can be 'Heating' or 'HotWater'
@@ -680,7 +681,7 @@ class BasePlugin:
             nextUnit = self.GetNextUnit(nextUnit)
         return nextUnit
 
-    def CreateLightPayload(self, State, Brightness):
+    def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
         # brightness 0->100
         # colourMode COLOUR or TUNABLE : switches from colour to temperature mode
