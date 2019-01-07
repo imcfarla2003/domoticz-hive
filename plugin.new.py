@@ -71,6 +71,10 @@ class BasePlugin:
     def onStart(self):
         Domoticz.Log('Starting')
         if Parameters["Mode6"] != "0":
+            if Parameters["Mode6"] == "Normal":
+                Domoticz.Debugging(0)
+            if Parameters["Mode6"] == "Debug":
+                Domoticz.Debugging(-1)
             Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
         self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
