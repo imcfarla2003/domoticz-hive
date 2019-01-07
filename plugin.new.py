@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla, MikeF and roadsnail" version="0.8(Dev)" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug2" name="Hive Plugin2" author="imcfarla, MikeF and roadsnail" version="0.9(Dev)" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -12,7 +12,6 @@
         </ul>
         <h3>To Do</h3>
         <ul style="list-style-type:square">
-            <li>Weather</li>
             <li>Allow to choose the heating mode from boost, scheduled, manual and off</li>
         </ul>
     </description>
@@ -57,14 +56,17 @@ class BasePlugin:
         self.TimedOutAvailable = True
         self.httpConn = False
         self.deviceConn = False
+        self.deviceUpdateConn = False
+        self.weatherConn = False
         self.sessionHost = 'api.prod.bgchprod.info' 
         self.deviceHost = 'api.prod.bgchprod.info'
+        self.weatherHost = 'weather.prod.bgchprod.info'
         self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
             'Accept': 'application/vnd.alertme.zoo-6.2+json', 
             'X-AlertMe-Client': 'Hive Web Dashboard',
             'Host':self.sessionHost}
+        self.weatherHeaders = {}
         self.deviceUpdate = False
-        self.deviceUpdateConn = False
     
     def onStart(self):
         Domoticz.Log('Starting')
@@ -79,6 +81,7 @@ class BasePlugin:
             self.httpConn.Connect() # Get a SessionId
             self.deviceConn = Domoticz.Connection(Name="Hive Devices", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
             self.deviceUpdateConn = Domoticz.Connection(Name="Hive Device Update", Transport="TCP/IP", Protocol="HTTPS", Address=self.deviceHost, Port="443")
+            self.weatherConn = Domoticz.Connection(Name="Hive Weather", Transport="TCP/IP", Protocol="HTTPS", Address=self.weatherHost, Port="443")
  
     def onStop(self):
         return
@@ -109,6 +112,12 @@ class BasePlugin:
                 Domoticz.Debug('Updating Device')
                 deviceUpdate = self.deviceUpdate.pop_element()
                 self.updateDevice(deviceUpdate['Unit'],deviceUpdate['Command'],deviceUpdate['Level'],deviceUpdate['Hue'], Connection, url)
+        if (Connection.Name == 'Hive Weather'):
+            Domoticz.Debug('Getting Weather')
+            pc = str(Parameters['Mode3'])
+            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
+            url = '/weather?postcode=' +str(pc) + '&country=GB'
+            Connection.Send({'Verb':'GET','URL':url,'Headers':self.weatherHeaders})
  
     def onMessage(self, Connection, Data):
         Domoticz.Debug('onMessage called for ' + Connection.Name)
@@ -123,6 +132,11 @@ class BasePlugin:
                     'X-AlertMe-Client': 'Hive Web Dashboard', 
                     'X-Omnia-Access-Token': self.sessionId,
                     'Host':self.deviceHost}
+                self.weatherHeaders = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                    'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                    'X-AlertMe-Client': 'Hive Web Dashboard', 
+                    'X-Omnia-Access-Token': self.sessionId,
+                    'Host':self.weatherHost}
                 self.deviceConn.Connect() # Update the devices now
         if (Connection.Name == 'Hive Devices'):
             if (Data['Status'] == '200'):
@@ -142,6 +156,35 @@ class BasePlugin:
                 self.UpdateDeviceState(nodes)
             else:
                 Domoticz.Error("Update Device Failed")
+        if (Connection.Name == 'Hive Weather'):
+            if (Data['Status'] == '200'):
+                r = Data['Data'].decode('UTF-8')
+                try:
+                    w = json.loads(r)['weather']
+                    outsidetemp = w["temperature"]["value"]
+                except Exception as e:
+                    w = False
+                    Domoticz.Error(str(e))
+                try:
+                    Domoticz.Debug("Finding Outside Device")
+                    foundOutsideDevice = False
+                    for unit in Devices:
+                        if Devices[unit].DeviceID == "Hive_Outside":
+                            Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                            foundOutsideDevice = True
+                            Domoticz.Debug("Outside Device Updatedd")
+
+                    if foundOutsideDevice == False:
+                        newUnit = self.GetNextUnit(False)
+                        Domoticz.Device(Name = 'Outside',
+                                        Unit = newUnit,
+                                        TypeName = 'Temperature',
+                                        DeviceID = 'Hive_Outside').Create()
+                        Domoticz.Debug("Outside Device Created: " + str(newUnit))
+                        Devices[newUnit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
+                except Exception as e:
+                    Domoticz.Error(str(e))
+                Connection.Disconnect()
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
@@ -164,6 +207,9 @@ class BasePlugin:
             Domoticz.Debug('Getting Data')
             self.counter = 1
             self.deviceConn.Connect()
+            if Parameters["Mode3"] != "":
+                Domoticz.Debug('Getting Weather')
+                self.weatherConn.Connect()
         else:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
