@@ -98,11 +98,6 @@ class BasePlugin:
         Domoticz.Debug(str(Devices[Unit].SubType))
         Domoticz.Debug(Devices[Unit].DeviceID)
         Domoticz.Debug(str(Devices[Unit].sValue))
-        headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
-                   'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                   'X-AlertMe-Client': 'swagger', 
-                   'X-Omnia-Access-Token': self.sessionId}
-        url = 'https://api.prod.bgchprod.info:443/omnia/nodes/' + Devices[Unit].DeviceID
         payload = ""
         if self.isLight(Unit):
             Domoticz.Log("Setting Light Parameters")
@@ -152,6 +147,11 @@ class BasePlugin:
         else:
             Domoticz.Log("Unknown Device Type")
         if payload != "":
+            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
+                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
+                       'X-AlertMe-Client': 'swagger', 
+                       'X-Omnia-Access-Token': self.sessionId}
+            url = 'https://api.prod.bgchprod.info:443/omnia/nodes/' + Devices[Unit].DeviceID
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             req.get_method = lambda : 'PUT'
             try:
@@ -215,7 +215,7 @@ class BasePlugin:
             pc = pc.replace(" ","") # strip spaces from postcode (if existing)
             wurl = 'https://weather.prod.bgchprod.info/weather?postcode=' +str(pc) + '&country=GB'
             wreq = Request(wurl)
-			
+
             try:
                 weather = urlopen(wreq).read().decode('utf-8')
             except HTTPError as e:
@@ -334,6 +334,8 @@ class BasePlugin:
         thermostats = self.GetThermostat(d, 'Heating')
         if thermostats:
             for node in thermostats:
+                # TODO: add schedule switch to change toggle scheduled or off (chrelay switch toggles manual or off)
+                # TODO: add switch for boost mode (fix time to half an hour)
                 foundInsideDevice = False
                 foundTargetDevice = False
                 foundHeatingDevice = False
@@ -749,13 +751,13 @@ class BasePlugin:
     def isLight(self, Unit):
         Domoticz.Debug(str(self.lightsSet))
         if Devices[Unit].Type == 244 and Devices[Unit].SubType == 73 and Unit in self.lightsSet:
-            Domoticz.Debug(str(Unit) + " is Light")
+            Domoticz.Debug(str(Unit) + " is Active Light")
             return True
         elif Devices[Unit].Type == 241 and Devices[Unit].SubType == 4 and Unit in self.lightsSet:
-            Domoticz.Debug(str(Unit) + " is Light")
+            Domoticz.Debug(str(Unit) + " is RGB Light")
             return True
         elif Devices[Unit].Type == 241 and Devices[Unit].SubType == 8 and Unit in self.lightsSet:
-            Domoticz.Debug(str(Unit) + " is Light")
+            Domoticz.Debug(str(Unit) + " is WW/CW Light")
             return True
         else:
             return False

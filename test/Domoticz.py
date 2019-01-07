@@ -1,4 +1,6 @@
 import sys
+from urllib.request import Request, urlopen
+
 Devices = {}
 debugLevel = 0
 # this is a pointer to the module object instance itself.
@@ -17,6 +19,27 @@ def Error(message):
 def Debugging(level):
     this.debugLevel = level
     print("Debug Level: " + str(this.debugLevel))
+
+class Connection:
+    Name = ''
+    Transport = ''
+    Protocol = ''
+    Address = ''
+    Port = ''
+    def __init__(self, Name, Transport, Protocol, Address, Port):
+        self.Name = Name
+        self.Transport = Transport
+        self.Protocol = Protocol
+        self.Address = Address
+        self.Port = Port
+        print("Connection: " + self.Name)
+
+    def Connect(self):
+        print("Connect: " + self.Name)
+
+    def Send(self, URL, Headers, Data):
+       req = Request(self.Address + ":" + self.Port + URL, data = Data, headers = Headers, unverifiable = True)
+       self.results = req.read()
 
 class Device:
     ID = 0
