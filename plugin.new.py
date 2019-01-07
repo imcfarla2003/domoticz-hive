@@ -229,6 +229,8 @@ class BasePlugin:
                 foundTargetDevice = False
                 foundHeatingDevice = False
                 foundThermostatDevice = False
+                thermostat_battery = 0
+                thermostat_rssi = 0
                 # get the temperature and heating states
                 temp = node["attributes"]["temperature"]["reportedValue"]
                 Domoticz.Debug('Temp = ' + str(temp))
