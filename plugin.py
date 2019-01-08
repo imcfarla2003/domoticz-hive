@@ -75,7 +75,7 @@ class BasePlugin:
                 Domoticz.Debugging(0)
             elif Parameters["Mode6"] == "Debug":
                 Domoticz.Debugging(-1)
-            else
+            else:
                 Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
         self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
