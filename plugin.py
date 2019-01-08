@@ -73,6 +73,8 @@ class BasePlugin:
         if Parameters["Mode6"] != "0":
             if Parameters["Mode6"] == "Normal":
                 Domoticz.Debugging(0)
+            elif Parameters["Mode6"] == "null":
+                Domoticz.Debugging(0)
             elif Parameters["Mode6"] == "Debug":
                 Domoticz.Debugging(-1)
             else:
