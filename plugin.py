@@ -73,9 +73,10 @@ class BasePlugin:
         if Parameters["Mode6"] != "0":
             if Parameters["Mode6"] == "Normal":
                 Domoticz.Debugging(0)
-            if Parameters["Mode6"] == "Debug":
+            elif Parameters["Mode6"] == "Debug":
                 Domoticz.Debugging(-1)
-            Domoticz.Debugging(int(Parameters["Mode6"]))
+            else
+                Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
         self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
         if int(self.getDomoticzRevision()) < 9030: 
@@ -204,7 +205,7 @@ class BasePlugin:
         Domoticz.Debug('Notification: ' + Name + ',' + Subject + ',' + Text + ',' + Status + ',' + str(Priority) + ',' + Sound + ',' + ImageFile)
     
     def onDisconnect(self, Connection):
-        Domoticz.Debug('onDisconnect called')
+        Domoticz.Debug('onDisconnect called for ' + Connection.Name)
     
     def onHeartbeat(self):
         Domoticz.Debug('onHeartbeat called')
