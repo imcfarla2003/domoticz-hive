@@ -23,8 +23,13 @@
         <param field="Mode3" label="Postcode" width="100px" required="false" default=""/>
         <param field="Mode6" label="Debug" width="75px">
             <options>
-                <option label="True" value="Debug"/>
-                <option label="False" value="Normal"  default="true" />
+                <option label="None" value="0"  default="true" />
+                <option label="Python Only" value="2"/>
+                <option label="Basic Debugging" value="62"/>
+                <option label="Basic+Messages" value="126"/>
+                <option label="Connections Only" value="16"/>
+                <option label="Connections+Queue" value="144"/>
+                <option label="All" value="-1"/>
             </options>
         </param>
     </params>
@@ -56,8 +61,15 @@ class BasePlugin:
     
     def onStart(self):
         Domoticz.Log('Starting')
-        if Parameters["Mode6"] == "Debug":
-            Domoticz.Debugging(1)
+        if Parameters["Mode6"] != "0":
+            if Parameters["Mode6"] == "Normal":
+                Domoticz.Debugging(0)
+            elif Parameters["Mode6"] == "null":
+                Domoticz.Debugging(0)
+            elif Parameters["Mode6"] == "Debug":
+                Domoticz.Debugging(-1)
+            else:
+                Domoticz.Debugging(int(Parameters["Mode6"]))
         if int(self.getDomoticzRevision()) >= 8651: 
             # Devices[unit].TimedOut only appears in Revision >= 8651
             self.TimedOutAvailable = True
