@@ -222,6 +222,74 @@ class BasePlugin:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
 
+    def GetThermostat(self, d, ttype):
+        #ttype can be 'Heating' or 'HotWater'
+        thermostats = False
+        k = 'state'+ttype+'Relay'
+        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostat.json#')
+        if x:
+            for i in x:
+                if k in i['attributes']:
+                    if thermostats:
+                        thermostats.append(i)
+                    else:
+                        thermostats = [i]
+        return thermostats
+
+    def GetThermostatUI(self, d, parentNodeId):
+        thermostatui = False
+        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostatui.json#')
+        if not x: # Try a Hive2 thermostat
+            x = find_key_in_list(d,"Hive2")
+        if x:
+            for i in x:
+                try:
+                    if i["relationships"]["boundNodes"][0]["id"] == parentNodeId:
+                        thermostatui = i
+                except Exception as e:
+                    Domoticz.Debug("Thermostatui - No boundNodes under relationship")
+        if len(x) == 1:
+            Domoticz.Debug("Only one thermostatui node so using that")
+            thermostatui = x[0]
+        return thermostatui
+
+    def GetLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetTunableLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetColourLights(self, d):
+        lights = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
+        if x:
+            lights = x
+        return lights
+
+    def GetActivePlugs(self, d):
+        activeplugs = False
+        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
+        if x:
+            activeplugs = x
+        return activeplugs
+
+    def GetNextUnit(self, unit):
+        if not unit:
+            nextUnit = len(Devices) + 1
+        else:
+            nextUnit = unit +1
+        if nextUnit in Devices or nextUnit <= 1:
+            nextUnit = self.GetNextUnit(nextUnit)
+        return nextUnit
+
     def UpdateDeviceState(self, d):
         foundHotWaterDevice = False
         foundOutsideDevice = False
@@ -563,133 +631,6 @@ class BasePlugin:
                                     DeviceID = node['id']).Create()
                     Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
 
-    def updateDevice(self, Unit, Command, Level, Hue, Connection, url = "/omnia/nodes"):
-        Domoticz.Debug('updateDevice called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
-        Domoticz.Debug(str(Devices[Unit].Type))
-        Domoticz.Debug(str(Devices[Unit].SubType))
-        Domoticz.Debug(Devices[Unit].DeviceID)
-        Domoticz.Debug(str(Devices[Unit].sValue))
-        payload = ""
-        if self.isLight(Unit):
-            Domoticz.Log("Setting Light Parameters")
-            if str(Command) == "Set Level":
-                payload = self.CreateLightPayload("ON", Level)
-            if str(Command) == "On":
-                payload = self.CreateLightPayload("ON", Devices[Unit].LastLevel)
-            if str(Command) == "Off":
-                payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
-            if str(Command) == "Set Color":
-                Domoticz.Debug(Hue)
-                colourDict = json.loads(Hue)
-                colourMode = colourDict.get("m")
-                if colourMode == 2:
-                    # white temp
-                    colourTemp = 6533-(colourDict.get("t")*15)
-                    Domoticz.Debug(str(colourTemp))
-                    payload = self.CreateLightPayload("ON", Level, "TUNABLE", colourTemp)
-                elif colourMode == 3:
-                    # rgb colour
-                    h, s, v = rgb2hsv(colourDict.get("r"),colourDict.get("g"),colourDict.get("b"))
-                    Domoticz.Debug(str(h) + " " + str(s) + " " +str(v))
-                    payload = self.CreateLightPayload("ON", Level, "COLOUR", h, s)
-                else:
-                   Domoticz.Log("Colour Mode not supported: " + str(colourMode))
-        elif self.isThermostat(Unit):
-            Domoticz.Log("Setting Thermostat Level")
-            payload = self.CreateThermostatPayload(Level)
-        elif self.isActivePlug(Unit):
-            Domoticz.Log("Setting ActivePlug State")
-            if str(Command) == "On":
-                payload = self.CreateActivePlugPayload("ON")
-            if str (Command) == "Off":
-                payload = self.CreateActivePlugPayload("OFF")
-        elif self.isHotWaterRelay(Unit):
-            Domoticz.Log("Setting Hot Water Relay State")
-            if str(Command) == "On":
-                payload = self.CreateHotWaterPayload("HEAT") # Android APP Shows as On
-            if str(Command) == "Off":
-                payload = self.CreateHotWaterPayload("OFF") # Android APP shows as Off
-        elif self.isCentralHeatingRelay(Unit):
-            Domoticz.Log("Setting Central Heating Relay State")
-            if str(Command) == "On":
-                payload = self.CreateCentralHeatingPayload("HEAT") # Android APP Shows as Manual (Governed by Thermostat setting)
-            if str(Command) == "Off":
-                payload = self.CreateCentralHeatingPayload("OFF") # Android APP shows as Off
-        else:
-            Domoticz.Log("Unknown Device Type")
-            payload = ""
-        if payload != "":
-            data = json.dumps(payload)
-            Connection.Send({'Verb':'PUT','URL':url + '/'+Devices[Unit].DeviceID,'Headers':self.headers,'Data':data})
-    
-    def GetThermostat(self, d, ttype):
-        #ttype can be 'Heating' or 'HotWater'
-        thermostats = False
-        k = 'state'+ttype+'Relay'
-        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostat.json#')
-        if x:
-            for i in x:
-                if k in i['attributes']:
-                    if thermostats:
-                        thermostats.append(i)
-                    else:
-                        thermostats = [i]
-        return thermostats
-
-    def GetThermostatUI(self, d, parentNodeId):
-        thermostatui = False
-        x = find_key_in_list(d, 'http://alertme.com/schema/json/node.class.thermostatui.json#')
-        if not x: # Try a Hive2 thermostat
-            x = find_key_in_list(d,"Hive2")
-        if x:
-            for i in x:
-                try:
-                    if i["relationships"]["boundNodes"][0]["id"] == parentNodeId:
-                        thermostatui = i
-                except Exception as e:
-                    Domoticz.Debug("Thermostatui - No boundNodes under relationship")
-        if len(x) == 1:
-            Domoticz.Debug("Only one thermostatui node so using that")
-            thermostatui = x[0]
-        return thermostatui
-
-    def GetLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetTunableLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.tunable.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetColourLights(self, d):
-        lights = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.colour.tunable.light.json#")
-        if x:
-            lights = x
-        return lights
-
-    def GetActivePlugs(self, d):
-        activeplugs = False
-        x = find_key_in_list(d,"http://alertme.com/schema/json/node.class.smartplug.json#")
-        if x:
-            activeplugs = x
-        return activeplugs
-
-    def GetNextUnit(self, unit):
-        if not unit:
-            nextUnit = len(Devices) + 1
-        else:
-            nextUnit = unit +1
-        if nextUnit in Devices or nextUnit <= 1:
-            nextUnit = self.GetNextUnit(nextUnit)
-        return nextUnit
-
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
         # brightness 0->100
@@ -820,6 +761,68 @@ class BasePlugin:
         Domoticz.Debug("Domoticz Revision: " + str(Revision))
         return Revision
 
+    def updateDevice(self, Unit, Command, Level, Hue, Connection, url="/omnia/nodes"):
+        Domoticz.Debug(
+            'updateDevice called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        Domoticz.Debug(str(Devices[Unit].Type))
+        Domoticz.Debug(str(Devices[Unit].SubType))
+        Domoticz.Debug(Devices[Unit].DeviceID)
+        Domoticz.Debug(str(Devices[Unit].sValue))
+        payload = ""
+        if self.isLight(Unit):
+            Domoticz.Log("Setting Light Parameters")
+            if str(Command) == "Set Level":
+                payload = self.CreateLightPayload("ON", Level)
+            if str(Command) == "On":
+                payload = self.CreateLightPayload("ON", Devices[Unit].LastLevel)
+            if str(Command) == "Off":
+                payload = self.CreateLightPayload("OFF", Devices[Unit].LastLevel)
+            if str(Command) == "Set Color":
+                Domoticz.Debug(Hue)
+                colourDict = json.loads(Hue)
+                colourMode = colourDict.get("m")
+                if colourMode == 2:
+                    # white temp
+                    colourTemp = 6533 - (colourDict.get("t") * 15)
+                    Domoticz.Debug(str(colourTemp))
+                    payload = self.CreateLightPayload("ON", Level, "TUNABLE", colourTemp)
+                elif colourMode == 3:
+                    # rgb colour
+                    h, s, v = rgb2hsv(colourDict.get("r"), colourDict.get("g"), colourDict.get("b"))
+                    Domoticz.Debug(str(h) + " " + str(s) + " " + str(v))
+                    payload = self.CreateLightPayload("ON", Level, "COLOUR", h, s)
+                else:
+                    Domoticz.Log("Colour Mode not supported: " + str(colourMode))
+        elif self.isThermostat(Unit):
+            Domoticz.Log("Setting Thermostat Level")
+            payload = self.CreateThermostatPayload(Level)
+        elif self.isActivePlug(Unit):
+            Domoticz.Log("Setting ActivePlug State")
+            if str(Command) == "On":
+                payload = self.CreateActivePlugPayload("ON")
+            if str(Command) == "Off":
+                payload = self.CreateActivePlugPayload("OFF")
+        elif self.isHotWaterRelay(Unit):
+            Domoticz.Log("Setting Hot Water Relay State")
+            if str(Command) == "On":
+                payload = self.CreateHotWaterPayload("HEAT")  # Android APP Shows as On
+            if str(Command) == "Off":
+                payload = self.CreateHotWaterPayload("OFF")  # Android APP shows as Off
+        elif self.isCentralHeatingRelay(Unit):
+            Domoticz.Log("Setting Central Heating Relay State")
+            if str(Command) == "On":
+                payload = self.CreateCentralHeatingPayload(
+                    "HEAT")  # Android APP Shows as Manual (Governed by Thermostat setting)
+            if str(Command) == "Off":
+                payload = self.CreateCentralHeatingPayload("OFF")  # Android APP shows as Off
+        else:
+            Domoticz.Log("Unknown Device Type")
+            payload = ""
+        if payload != "":
+            data = json.dumps(payload)
+            Connection.Send(
+                {'Verb': 'PUT', 'URL': url + '/' + Devices[Unit].DeviceID, 'Headers': self.headers, 'Data': data})
+
 _plugin = BasePlugin()
 
 def onStart():
@@ -858,17 +861,6 @@ def DumpConfigToLog():
         Domoticz.Debug('Device nValue:    ' + str(Devices[x].nValue))
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug('Device LastLevel: ' + str(Devices[x].LastLevel))
-
-def DumpHTTPResponseToLog(httpDict):
-    if isinstance(httpDict, dict):
-        Domoticz.Log("HTTP Details ("+str(len(httpDict))+"):")
-        for x in httpDict:
-            if isinstance(httpDict[x], dict):
-                Domoticz.Log("--->'"+x+" ("+str(len(httpDict[x]))+"):")
-                for y in httpDict[x]:
-                    Domoticz.Log("------->'" + y + "':'" + str(httpDict[x][y]) + "'")
-            else:
-                Domoticz.Log("--->'" + x + "':'" + str(httpDict[x]) + "'")
 
 def find_key_in_list(d, value):
     if isinstance(d, list):
@@ -918,6 +910,17 @@ def rgb2hsv(r, g, b):
         s = df/mx
     v = mx
     return h, s, v
+
+def DumpHTTPResponseToLog(httpDict):
+    if isinstance(httpDict, dict):
+        Domoticz.Log("HTTP Details ("+str(len(httpDict))+"):")
+        for x in httpDict:
+            if isinstance(httpDict[x], dict):
+                Domoticz.Log("--->'"+x+" ("+str(len(httpDict[x]))+"):")
+                for y in httpDict[x]:
+                    Domoticz.Log("------->'" + y + "':'" + str(httpDict[x][y]) + "'")
+            else:
+                Domoticz.Log("--->'" + x + "':'" + str(httpDict[x]) + "'")
 
 class Buffer:
     def __init__(self, capacity):

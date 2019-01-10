@@ -101,7 +101,7 @@ class BasePlugin:
     def onConnect(self, Connection, Status, Description):
         Domoticz.Debug('onConnect called')
     
-    def onMessage(self, Connection, Data, Status, Extra):
+    def onMessage(self, Connection, Data):
         Domoticz.Debug('onMessage called')
     
     def onCommand(self, Unit, Command, Level, Hue):
@@ -210,65 +210,6 @@ class BasePlugin:
         else:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
-
-    def GetSessionID(self):
-            payload = {'sessions':[{'username':Parameters["Username"], 'password':Parameters["Password"]}]}
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                       'X-AlertMe-Client': 'Hive Web Dashboard'}
-            url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
-            req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
-            r = urlopen(req).read().decode('utf-8')
-            self.sessionId = json.loads(r)["sessions"][0]['sessionId']
-
-    def GetWeatherURL(self):
-            weather = False
-            pc = str(Parameters['Mode3'])
-            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
-            wurl = 'https://weather.prod.bgchprod.info/weather?postcode=' +str(pc) + '&country=GB'
-            wreq = Request(wurl)
-
-            try:
-                weather = urlopen(wreq).read().decode('utf-8')
-            except HTTPError as e:
-                if e.code == 401: # Unauthorised - need new sessionId
-                    self.onStop()
-                    self.GetSessionID()
-                    weather = urlopen(wreq).read().decode('utf-8')
-                else:
-                    Domoticz.Log(str(e))
-            except Exception as e:
-                Domoticz.Log(str(e))
-            try:
-                weather = json.loads(weather)['weather'] # get weather Object from the url response into a string for later	then return		
-            except Exception as e:
-                Domoticz.Log(str(e))
-            return weather
-
-    def GetDevices(self):
-            nodes = False
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                       'X-AlertMe-Client': 'swagger', 
-                       'X-Omnia-Access-Token': self.sessionId}
-            url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
-            req = Request(url, headers = headers, unverifiable = True)
-            try:
-                r = urlopen(req).read().decode('utf-8')
-            except HTTPError as e:
-                if e.code == 401: # Unauthorised - need new sessionId
-                    self.onStop()
-                    self.GetSessionID()
-                    r = urlopen(req).read().decode('utf-8')
-                else:
-                    Domoticz.Log(str(e))
-            except Exception as e:
-                Domoticz.Log(str(e))
-            try:
-                nodes = json.loads(r)['nodes']
-            except Exception as e:
-                Domoticz.Log(str(e))
-            return nodes
 
     def GetThermostat(self, d, ttype):
         #ttype can be 'Heating' or 'HotWater'
@@ -404,34 +345,34 @@ class BasePlugin:
                                                 Devices[unit].Update(nValue=0, sValue='Off')
                     if Devices[unit].DeviceID == node['id'] and Devices[unit].Type == 242: #Thermostat
                         foundThermostatDevice = True
-                        Devices[unit].Update(nValue = int(targetTemp), 
-                                             sValue = str(targetTemp), 
-                                             BatteryLevel = int(thermostat_battery), 
+                        Devices[unit].Update(nValue = int(targetTemp),
+                                             sValue = str(targetTemp),
+                                             BatteryLevel = int(thermostat_battery),
                                              SignalLevel = int(thermostat_rssi))
                 if foundInsideDevice == False and thermostatui:
                     Domoticz.Device(Name = thermostatui["name"] + ' - Current',
-                                    Unit = self.GetNextUnit(False), 
-                                    TypeName = 'Temperature', 
+                                    Unit = self.GetNextUnit(False),
+                                    TypeName = 'Temperature',
                                     DeviceID = node["name"]+'_Current').Create()
                     self.counter = self.multiplier
                 if foundTargetDevice == False and thermostatui:
                     Domoticz.Device(Name = thermostatui["name"] + ' - Target',
-                                    Unit = self.GetNextUnit(False), 
-                                    TypeName = 'Temperature', 
+                                    Unit = self.GetNextUnit(False),
+                                    TypeName = 'Temperature',
                                     DeviceID = node["name"]+'_Target').Create()
                     self.counter = self.multiplier
                 if foundHeatingDevice == False and thermostatui:
                     Domoticz.Device(Name = thermostatui["name"] + ' - Heating',
-                                    Unit = self.GetNextUnit(False), 
-                                    TypeName = 'Switch', 
-                                    Switchtype = 0, 
+                                    Unit = self.GetNextUnit(False),
+                                    TypeName = 'Switch',
+                                    Switchtype = 0,
                                     DeviceID = node['id']).Create()
                     self.counter = self.multiplier
                 if foundThermostatDevice == False and thermostatui:
                     Domoticz.Device(Name = thermostatui["name"] + ' - Thermostat',
-                                    Unit = self.GetNextUnit(False), 
+                                    Unit = self.GetNextUnit(False),
                                     Type = 242,
-                                    Subtype = 1, 
+                                    Subtype = 1,
                                     DeviceID = node['id']).Create()
                     self.counter = self.multiplier
         else:
@@ -467,10 +408,10 @@ class BasePlugin:
                                         else:
                                             Devices[unit].Update(nValue=0, sValue='Off')
             if foundHotWaterDevice == False:
-                Domoticz.Device(Name = 'HotWater - Relay', 
-                                Unit = self.GetNextUnit(False), 
-                                TypeName = 'Switch', 
-                                Switchtype = 0, 
+                Domoticz.Device(Name = 'HotWater - Relay',
+                                Unit = self.GetNextUnit(False),
+                                TypeName = 'Switch',
+                                Switchtype = 0,
                                 DeviceID = thermostatW["id"]).Create()
                 self.counter = self.multiplier
         else:
@@ -539,28 +480,28 @@ class BasePlugin:
                                         if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
                                             # Don't bother with colours as there is currently nowhere in domoticz to store these
                                             # 1 = Set Level for rgbww dimmer
-                                            Devices[unit].Update(nValue=1, 
-                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]), 
-                                                                 TimedOut=0, 
+                                            Devices[unit].Update(nValue=1,
+                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]),
+                                                                 TimedOut=0,
                                                                  SignalLevel=int(rssi))
                                         elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
                                             # 1 = Set Level for ww dimmer
-                                            Devices[unit].Update(nValue=1, 
-                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]), 
-                                                                 TimedOut=0, 
+                                            Devices[unit].Update(nValue=1,
+                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]),
+                                                                 TimedOut=0,
                                                                  SignalLevel=int(rssi))
                                         elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
                                             # 2 = Set Level
-                                            Devices[unit].Update(nValue=2, 
-                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]), 
-                                                                 TimedOut=0, 
+                                            Devices[unit].Update(nValue=2,
+                                                                 sValue=str(node["attributes"]["brightness"]["targetValue"]),
+                                                                 TimedOut=0,
                                                                  SignalLevel=int(rssi))
                                         else:
                                             Domoticz.Debug("Unknown Light")
                                     else:
                                         # 2 = Set Level
-                                        Devices[unit].Update(nValue=2, 
-                                                             sValue=str(node["attributes"]["brightness"]["targetValue"]), 
+                                        Devices[unit].Update(nValue=2,
+                                                             sValue=str(node["attributes"]["brightness"]["targetValue"]),
                                                              SignalLevel=int(rssi))
                         found = True
                         Domoticz.Debug("Light finished " + node["name"])
@@ -571,29 +512,29 @@ class BasePlugin:
                     newUnit = self.GetNextUnit(False)
                     if node["attributes"]["model"]["reportedValue"] == "RGBBulb01UK":
                         # RGB WW CW Bulb
-                        Domoticz.Device(Name = node["name"], 
-                                        Unit = newUnit, 
-                                        Type=241, 
-                                        Subtype=4, 
-                                        Switchtype=7, 
+                        Domoticz.Device(Name = node["name"],
+                                        Unit = newUnit,
+                                        Type=241,
+                                        Subtype=4,
+                                        Switchtype=7,
                                         DeviceID = node['id']).Create()
                         created = True
                     elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
                         # TW CW Bulb
-                        Domoticz.Device(Name = node["name"], 
-                                        Unit = newUnit, 
-                                        Type=241, 
-                                        Subtype=8, 
-                                        Switchtype=7, 
+                        Domoticz.Device(Name = node["name"],
+                                        Unit = newUnit,
+                                        Type=241,
+                                        Subtype=8,
+                                        Switchtype=7,
                                         DeviceID = node['id']).Create()
                         created = True
                     elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
                         # Standard dimmable light
-                        Domoticz.Device(Name = node["name"], 
-                                        Unit = newUnit, 
-                                        Type=244, 
-                                        Subtype=73, 
-                                        Switchtype=7, 
+                        Domoticz.Device(Name = node["name"],
+                                        Unit = newUnit,
+                                        Type=244,
+                                        Subtype=73,
+                                        Switchtype=7,
                                         DeviceID = node['id']).Create()
                         created = True
                     else:
@@ -601,13 +542,13 @@ class BasePlugin:
                     if created:
                         if node["attributes"]["state"]["reportedValue"] == "OFF":
                             Domoticz.Debug("New Device Off")
-                            Devices[newUnit].Update(nValue=0, 
-                                                    sValue='Off', 
+                            Devices[newUnit].Update(nValue=0,
+                                                    sValue='Off',
                                                     SignalLevel=int(rssi))
                         else:
                             Domoticz.Debug("New Device On")
-                            Devices[newUnit].Update(nValue=2, 
-                                                    sValue=str(node["attributes"]["brightness"]["reportedValue"]), 
+                            Devices[newUnit].Update(nValue=2,
+                                                    sValue=str(node["attributes"]["brightness"]["reportedValue"]),
                                                     SignalLevel=int(rssi)) # 2 = Set Level
 
         activeplugs = self.GetActivePlugs(d)
@@ -622,9 +563,9 @@ class BasePlugin:
                         if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
                             if self.TimedOutAvailable:
                                 if Devices[unit].TimedOut == 0:
-                                    Devices[unit].Update(nValue=Devices[unit].nValue, 
-                                                         sValue=Devices[unit].sValue, 
-                                                         TimedOut=1, 
+                                    Devices[unit].Update(nValue=Devices[unit].nValue,
+                                                         sValue=Devices[unit].sValue,
+                                                         TimedOut=1,
                                                          SignalLevel=0)
                             else:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
@@ -660,7 +601,7 @@ class BasePlugin:
                 else:
                     Domoticz.Log("ActivePlug not found " + node["name"])
                     newUnit = self.GetNextUnit(False)
-                    Domoticz.Device(Name = node["name"], 
+                    Domoticz.Device(Name = node["name"],
                                     Unit = newUnit,
                                     TypeName = "Switch",
                                     Switchtype = 0,
@@ -830,6 +771,65 @@ class BasePlugin:
         Domoticz.Debug("Domoticz Revision: " + str(Revision))
         return Revision
 
+    def GetSessionID(self):
+            payload = {'sessions':[{'username':Parameters["Username"], 'password':Parameters["Password"]}]}
+            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json',
+                       'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                       'X-AlertMe-Client': 'Hive Web Dashboard'}
+            url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
+            req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
+            r = urlopen(req).read().decode('utf-8')
+            self.sessionId = json.loads(r)["sessions"][0]['sessionId']
+
+    def GetWeatherURL(self):
+            weather = False
+            pc = str(Parameters['Mode3'])
+            pc = pc.replace(" ","") # strip spaces from postcode (if existing)
+            wurl = 'https://weather.prod.bgchprod.info/weather?postcode=' +str(pc) + '&country=GB'
+            wreq = Request(wurl)
+
+            try:
+                weather = urlopen(wreq).read().decode('utf-8')
+            except HTTPError as e:
+                if e.code == 401: # Unauthorised - need new sessionId
+                    self.onStop()
+                    self.GetSessionID()
+                    weather = urlopen(wreq).read().decode('utf-8')
+                else:
+                    Domoticz.Log(str(e))
+            except Exception as e:
+                Domoticz.Log(str(e))
+            try:
+                weather = json.loads(weather)['weather'] # get weather Object from the url response into a string for later	then return
+            except Exception as e:
+                Domoticz.Log(str(e))
+            return weather
+
+    def GetDevices(self):
+            nodes = False
+            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                       'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                       'X-AlertMe-Client': 'swagger',
+                       'X-Omnia-Access-Token': self.sessionId}
+            url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
+            req = Request(url, headers = headers, unverifiable = True)
+            try:
+                r = urlopen(req).read().decode('utf-8')
+            except HTTPError as e:
+                if e.code == 401: # Unauthorised - need new sessionId
+                    self.onStop()
+                    self.GetSessionID()
+                    r = urlopen(req).read().decode('utf-8')
+                else:
+                    Domoticz.Log(str(e))
+            except Exception as e:
+                Domoticz.Log(str(e))
+            try:
+                nodes = json.loads(r)['nodes']
+            except Exception as e:
+                Domoticz.Log(str(e))
+            return nodes
+
 _plugin = BasePlugin()
 
 def onStart():
@@ -841,8 +841,8 @@ def onStop():
 def onConnect(Connection, Status, Description):
     _plugin.onConnect(Connection, Status, Description)
 
-def onMessage(Connection, Data, Status, Extra):
-    _plugin.onMessage(Connection, Data, Status, Extra)
+def onMessage(Connection, Data):
+    _plugin.onMessage(Connection, Data)
 
 def onCommand(Unit, Command, Level, Hue):
     _plugin.onCommand(Unit, Command, Level, Hue)
