@@ -67,6 +67,8 @@ class BasePlugin:
             'Host':self.sessionHost}
         self.weatherHeaders = {}
         self.deviceUpdate = False
+        self.updateCounter = 0
+        self.updateCounterLast = 0
     
     def onStart(self):
         Domoticz.Log('Starting')
@@ -80,7 +82,7 @@ class BasePlugin:
             else:
                 Domoticz.Debugging(int(Parameters["Mode6"]))
         self.multiplier = int(Parameters['Mode1'])
-        self.deviceUpdate = Buffer(10) # Buffer up to 10 commands
+        self.deviceUpdate = Buffer(20) # Buffer up to 20 commands
         if int(self.getDomoticzRevision()) < 9030: 
             Domoticz.Log("SNI connections are only available in Revision >= 9030.  This plugin will not work")
         else:
@@ -156,13 +158,15 @@ class BasePlugin:
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
             # The return data from a device update will only contain the info for that device
+            self.updateCounter -= 1  # Reduce the updateCounter
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
                 nodes = json.loads(r)['nodes']
-                self.deviceUpdateConn.Disconnect()
                 self.UpdateDeviceState(nodes)
             else:
                 Domoticz.Error("Update Device Failed")
+            if (self.updateCounter <= 0): # Disconnect if we are not expecting more updates to process
+                self.deviceUpdateConn.Disconnect()
         if (Connection.Name == 'Hive Weather'):
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
@@ -199,7 +203,10 @@ class BasePlugin:
             Domoticz.Debug("Already connected so updateDevice")
             self.updateDevice(Unit, Command, Level, Hue, self.deviceUpdateConn)
         else:
-            self.deviceUpdate.push_element({'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue})
+            try:
+                self.deviceUpdate.push_element({'Unit':Unit,'Command':Command,'Level':Level,'Hue':Hue})
+            except Exception as e:
+                Domoticz.Error(str(e)) # buffer is full
             if(self.deviceUpdateConn.Connecting() == False):
                 self.deviceUpdateConn.Connect()
 
@@ -221,6 +228,18 @@ class BasePlugin:
         else:
             self.counter += 1
             Domoticz.Debug('Counter = ' + str(self.counter))
+        # Check if we have a stale connection
+        if self.updateCounter > 0:
+            # we are waiting for a message
+            self.updateCounterLast += 1
+        else
+            # nothing waiting to be received
+            self.updateCounterLast = 0
+            if self.deviceUpdate.get_size() > 0: # Connect to clear down the buffer
+                self.deviceUpdateConn.Connect()
+        if self.updateCounterLast > 6 # Arbitrarily choose 6 heartbeats (1 minute)
+            self.updateCounter = 0 # clear the message queue
+            self.deviceUpdateConn.Disconnect()
 
     def GetThermostat(self, d, ttype):
         #ttype can be 'Heating' or 'HotWater'
@@ -820,8 +839,8 @@ class BasePlugin:
             payload = ""
         if payload != "":
             data = json.dumps(payload)
-            Connection.Send(
-                {'Verb': 'PUT', 'URL': url + '/' + Devices[Unit].DeviceID, 'Headers': self.headers, 'Data': data})
+            Connection.Send({'Verb': 'PUT', 'URL': url + '/' + Devices[Unit].DeviceID, 'Headers': self.headers, 'Data': data})
+            self.updateCounter += 1
 
 _plugin = BasePlugin()
 
