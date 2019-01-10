@@ -237,7 +237,7 @@ class BasePlugin:
             self.updateCounterLast = 0
             if self.deviceUpdate.get_size() > 0: # Connect to clear down the buffer
                 self.deviceUpdateConn.Connect()
-        if self.updateCounterLast > 6 # Arbitrarily choose 6 heartbeats (1 minute)
+        if self.updateCounterLast > 6: # Arbitrarily choose 6 heartbeats (1 minute)
             self.updateCounter = 0 # clear the message queue
             self.deviceUpdateConn.Disconnect()
 
