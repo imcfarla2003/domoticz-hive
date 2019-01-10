@@ -615,20 +615,21 @@ class BasePlugin:
                                         Devices[unit].Update(nValue=1, sValue='On', TimedOut=0, SignalLevel=int(rssi))
                                     else:
                                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
-                        for unit1 in Devices:
-                            if node['id'] == Devices[unit1].DeviceID and Devices[unit1].Type == 80:
-                                Domoticz.Debug("ActivePlug Temperature found " + node["name"])
-                                Devices[unit1].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
-                                break
-                        else:
-                            # Create a temperature device to go with the plug
-                            Domoticz.Debug("ActivePlug Temperature not found " + node["name"])
-                            newUnit = self.GetNextUnit(False)
-                            Domoticz.Device(Name = node["name"]+" - Temperature",
-                                            Unit = newUnit,
-                                            TypeName = "Temperature",
-                                            DeviceID = node['id']).Create()
-                            Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
+                        if "internalTemperature" in node["attributes"]:
+                            for unit1 in Devices:
+                                if node['id'] == Devices[unit1].DeviceID and Devices[unit1].Type == 80:
+                                    Domoticz.Debug("ActivePlug Temperature found " + node["name"])
+                                    Devices[unit1].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
+                                    break
+                            else:
+                                # Create a temperature device to go with the plug
+                                Domoticz.Debug("ActivePlug Temperature not found " + node["name"])
+                                newUnit = self.GetNextUnit(False)
+                                Domoticz.Device(Name = node["name"]+" - Temperature",
+                                                Unit = newUnit,
+                                                TypeName = "Temperature",
+                                                DeviceID = node['id']).Create()
+                                Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
                         break
                 else:
                     Domoticz.Log("ActivePlug not found " + node["name"])
@@ -642,13 +643,15 @@ class BasePlugin:
                         Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                     else:
                         Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
-                    # Create a temperature device to go with the plug
-                    newUnit = self.GetNextUnit(False)
-                    Domoticz.Device(Name = node["name"]+" - Temperature",
-                                    Unit = newUnit,
-                                    TypeName = "Temperature",
-                                    DeviceID = node['id']).Create()
-                    Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
+                    
+                    if "internalTemperature" in node["attributes"]:
+                        # Create a temperature device to go with the plug
+                        newUnit = self.GetNextUnit(False)
+                        Domoticz.Device(Name = node["name"]+" - Temperature",
+                                        Unit = newUnit,
+                                        TypeName = "Temperature",
+                                        DeviceID = node['id']).Create()
+                        Devices[newUnit].Update(nValue = 0, sValue = str(node["attributes"]["internalTemperature"]["reportedValue"]))
 
     def CreateLightPayload(self, State, Brightness, ColourMode = None, ColourTemperature = None, HsvSat = None):
         # state ON or OFF
