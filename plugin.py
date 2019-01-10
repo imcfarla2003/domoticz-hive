@@ -232,7 +232,7 @@ class BasePlugin:
         if self.updateCounter > 0:
             # we are waiting for a message
             self.updateCounterLast += 1
-        else
+        else:
             # nothing waiting to be received
             self.updateCounterLast = 0
             if self.deviceUpdate.get_size() > 0: # Connect to clear down the buffer
