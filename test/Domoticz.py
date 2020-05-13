@@ -72,7 +72,7 @@ class Device:
         self.ID = len(Devices)+1
         Devices[self.ID] = self
         if debugLevel > 0:
-            print("Create Device: " + self.DeviceID)
+            print("Create Device: " + str(self.ID) + " - " + self.DeviceID)
 
     def Update(self, nValue, sValue, SignalLevel=0, BatteryLevel=0, TimedOut=0):
         self.sValue = sValue

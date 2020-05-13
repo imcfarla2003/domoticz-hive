@@ -305,7 +305,7 @@ class BasePlugin:
             nextUnit = len(Devices) + 1
         else:
             nextUnit = unit +1
-        if nextUnit in Devices or nextUnit <= 1:
+        if nextUnit in Devices or nextUnit < 1:
             nextUnit = self.GetNextUnit(nextUnit)
         return nextUnit
 
@@ -478,7 +478,9 @@ class BasePlugin:
         if lights:
             for node in lights:
                 Domoticz.Debug("Light detected " + node["name"])
-                rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                rssi = 0
+                if "RSSI" in node["attributes"]:
+                    rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
                 found = False
                 for unit in Devices:
                     if node['id'] == Devices[unit].DeviceID:
@@ -493,8 +495,8 @@ class BasePlugin:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
                         else:
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
-                            Domoticz.Debug("State: " + Devices[unit].sValue + " -> " + node["attributes"]["state"]["targetValue"])
-                            if node["attributes"]["state"]["targetValue"] == "OFF":
+                            if ("targetValue" in node["attributes"]["state"] and node["attributes"]["state"]["targetValue"] == "OFF") or \
+                               ("targetValue" not in node["attributes"]["state"] and node["attributes"]["state"]["reportedValue"] == "OFF"):
                                 if Devices[unit].nValue != 0: # Device not already off
                                     if self.TimedOutAvailable:
                                         Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
@@ -572,8 +574,20 @@ class BasePlugin:
                     else:
                         Domoticz.Debug("Unknown Light")
                     if created:
-                        if node["attributes"]["state"]["reportedValue"] == "OFF":
-                            Domoticz.Debug("New Device Off")
+                        if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
+                            Domoticz.Debug("New Device Absent " + str(newUnit))
+                            if self.TimedOutAvailable:
+                                Devices[newUnit].Update(nValue=0,
+                                                        sValue="Off",
+                                                        TimedOut=1,
+                                                        SignalLevel=0)
+                            else:
+                                Devices[newUnit].Update(nValue=0,
+                                                        sValue='Off',
+                                                        SignalLevel=0)
+
+                        elif node["attributes"]["state"]["reportedValue"] == "OFF":
+                            Domoticz.Debug("New Device Off " + str(newUnit))
                             Devices[newUnit].Update(nValue=0, 
                                                     sValue='Off', 
                                                     SignalLevel=int(rssi))
@@ -883,6 +897,7 @@ def DumpConfigToLog():
         Domoticz.Debug('Device nValue:    ' + str(Devices[x].nValue))
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug('Device LastLevel: ' + str(Devices[x].LastLevel))
+        Domoticz.Debug('Device Timed Out: ' + str(Devices[x].TimedOut))
 
 def find_key_in_list(d, value):
     if isinstance(d, list):
