@@ -7,6 +7,7 @@ import requests
 import json
 import sys
 import argparse
+from pprint import pprint
 
 parser = argparse.ArgumentParser(description='Get Hive JSON data.')
 parser.add_argument('username', help='Hive Username')
@@ -20,6 +21,9 @@ payload = {'sessions':[{'username':args.username, 'password':args.password}]}
 headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', 'X-AlertMe-Client': 'Hive Web Dashboard'}
 url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
 r = requests.post(url, headers=headers, data=json.dumps(payload), verify=False)
+if "errors" in r.json():
+    pprint(r.json())
+    sys.exit(1)
 sessionId = r.json()["sessions"][0]['sessionId']
 
 headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 'Accept': 'application/vnd.alertme.zoo-6.2+json', \
