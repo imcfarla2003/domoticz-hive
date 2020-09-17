@@ -524,7 +524,7 @@ class BasePlugin:
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]), 
                                                                  TimedOut=0, 
                                                                  SignalLevel=int(rssi))
-                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
+                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                                             # 2 = Set Level
                                             Devices[unit].Update(nValue=2, 
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]), 
@@ -562,7 +562,7 @@ class BasePlugin:
                                         Switchtype=7, 
                                         DeviceID = node['id']).Create()
                         created = True
-                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
+                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                         # Standard dimmable light
                         Domoticz.Device(Name = node["name"], 
                                         Unit = newUnit, 
