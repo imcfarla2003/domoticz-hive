@@ -511,6 +511,8 @@ class BasePlugin:
                                         if Devices[unit].TimedOut:
                                             Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
                             else:
+                                if "targetValue" not in node["attributes"]["brightness"]:
+                                    node["attributes"]["brightness"]["targetValue"] = node["attributes"]["brightness"]["reportedValue"]
                                 Domoticz.Debug("Brightness Target: " + str(Devices[unit].LastLevel))
                                 Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["targetValue"]))
                                 if Devices[unit].LastLevel != int(node["attributes"]["brightness"]["targetValue"]) or Devices[unit].sValue == 'Off':
