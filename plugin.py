@@ -494,6 +494,9 @@ class BasePlugin:
                             else:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
                         else:
+                            if "state" not in node["attributes"]:
+                                Domoticz.Debug("No State")
+                                break
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
                             if ("targetValue" in node["attributes"]["state"] and node["attributes"]["state"]["targetValue"] == "OFF") or \
                                ("targetValue" not in node["attributes"]["state"] and node["attributes"]["state"]["reportedValue"] == "OFF"):
@@ -582,8 +585,9 @@ class BasePlugin:
                     else:
                         Domoticz.Debug("Unknown Light")
                     if created:
-                        if node["attributes"]["presence"]["reportedValue"] == "ABSENT":
-                            Domoticz.Debug("New Device Absent " + str(newUnit))
+                        if node["attributes"]["presence"]["reportedValue"] == "ABSENT" \
+                            or node["attributes"]["presence"]["reportedValue"] == "UNKNOWN":
+                            Domoticz.Debug("New Device " + node["attributes"]["presence"]["reportedValue"].lower() + " " + str(newUnit))
                             if self.TimedOutAvailable:
                                 Devices[newUnit].Update(nValue=0,
                                                         sValue="Off",
