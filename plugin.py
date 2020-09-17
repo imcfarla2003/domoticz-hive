@@ -484,6 +484,7 @@ class BasePlugin:
                 found = False
                 for unit in Devices:
                     if node['id'] == Devices[unit].DeviceID:
+                        found = True
                         if unit not in set(self.lightsSet):
                             self.lightsSet.add(unit)
                         Domoticz.Debug(Devices[unit].Name + ": " + node["attributes"]["presence"]["reportedValue"])
@@ -544,7 +545,6 @@ class BasePlugin:
                                         Devices[unit].Update(nValue=2, 
                                                              sValue=str(node["attributes"]["brightness"]["targetValue"]), 
                                                              SignalLevel=int(rssi))
-                        found = True
                         Domoticz.Debug("Light finished " + node["name"])
                         break
                 if not found:
