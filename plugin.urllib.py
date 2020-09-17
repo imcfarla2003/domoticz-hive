@@ -484,13 +484,17 @@ class BasePlugin:
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]),
                                                                  TimedOut=0,
                                                                  SignalLevel=int(rssi))
-                                        elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
+                                        elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK" \
+                                            or node["attributes"]["model"]["reportedValue"] == "TWBulb01US" \
+                                            or node["attributes"]["model"]["reportedValue"] == "TWGU10Bulb01UK":
                                             # 1 = Set Level for ww dimmer
                                             Devices[unit].Update(nValue=1,
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]),
                                                                  TimedOut=0,
                                                                  SignalLevel=int(rssi))
-                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
+                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" \
+                                            or node["attributes"]["model"]["reportedValue"] == "FWBulb02UK" \
+                                            or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                                             # 2 = Set Level
                                             Devices[unit].Update(nValue=2,
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]),
@@ -519,7 +523,9 @@ class BasePlugin:
                                         Switchtype=7,
                                         DeviceID = node['id']).Create()
                         created = True
-                    elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK":
+                    elif node["attributes"]["model"]["reportedValue"] == "TWBulb01UK" \
+                        or node["attributes"]["model"]["reportedValue"] == "TWBulb01US" \
+                        or node["attributes"]["model"]["reportedValue"] == "TWGU10Bulb01UK":
                         # TW CW Bulb
                         Domoticz.Device(Name = node["name"],
                                         Unit = newUnit,
@@ -528,7 +534,9 @@ class BasePlugin:
                                         Switchtype=7,
                                         DeviceID = node['id']).Create()
                         created = True
-                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01":
+                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" \
+                        or node["attributes"]["model"]["reportedValue"] == "FWBulb02UK" \
+                        or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                         # Standard dimmable light
                         Domoticz.Device(Name = node["name"],
                                         Unit = newUnit,
