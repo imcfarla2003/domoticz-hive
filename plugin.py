@@ -524,7 +524,9 @@ class BasePlugin:
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]), 
                                                                  TimedOut=0, 
                                                                  SignalLevel=int(rssi))
-                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
+                                        elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" \
+                                            or node["attributes"]["model"]["reportedValue"] == "FWBulb02UK" \
+                                            or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                                             # 2 = Set Level
                                             Devices[unit].Update(nValue=2, 
                                                                  sValue=str(node["attributes"]["brightness"]["targetValue"]), 
@@ -562,7 +564,9 @@ class BasePlugin:
                                         Switchtype=7, 
                                         DeviceID = node['id']).Create()
                         created = True
-                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
+                    elif node["attributes"]["model"]["reportedValue"] == "FWBulb01" \
+                        or node["attributes"]["model"]["reportedValue"] == "FWBulb02UK" \
+                        or node["attributes"]["model"]["reportedValue"] == "FWCLBulb01":
                         # Standard dimmable light
                         Domoticz.Device(Name = node["name"], 
                                         Unit = newUnit, 
@@ -602,7 +606,10 @@ class BasePlugin:
             for node in activeplugs:
                 for unit in Devices:
                     # Active plugs also have internalTemperature, energyConsumed and powerConsumption
-                    rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                    if "RSSI" in node["attributes"]:
+                        rssi = 12*((0 - node["attributes"]["RSSI"]["reportedValue"])/100)
+                    else:
+                        rssi = 0
                     if node['id'] == Devices[unit].DeviceID and Devices[unit].Type == 244:
                         if unit not in set(self.activeplugsSet):
                             self.activeplugsSet.add(unit)
@@ -653,10 +660,13 @@ class BasePlugin:
                                     TypeName = "Switch",
                                     Switchtype = 0,
                                     DeviceID = node['id']).Create()
-                    if node["attributes"]["state"]["reportedValue"] == "OFF":
-                        Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                    if "state" in node["attributes"]:
+                        if node["attributes"]["state"]["reportedValue"] == "OFF":
+                            Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
+                        else:
+                            Devices[newUnit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
                     else:
-                        Devices[unit].Update(nValue=1, sValue='On', SignalLevel=int(rssi))
+                        Devices[newUnit].Update(nValue=0, sValue='Off', SignalLevel=int(rssi))
                     
                     if "internalTemperature" in node["attributes"]:
                         # Create a temperature device to go with the plug
