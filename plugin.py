@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.0" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.1" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -812,21 +812,14 @@ class BasePlugin:
     def getDomoticzRevision(self):
         Revision = 8650 #Min version that supports all the features required -1
         if 'DomoticzVersion' in Parameters:
-            Domoticz.Log("DomoticzVersion Available" + Parameters['DomoticzVersion'])
-
-            # New version numbering for 2020.2 builds - check and parse accordingly
-
-            Revision = Parameters['DomoticzVersion']
-
-            newBuild = Revision.find('2020.2')
-            if newBuild == -1:
-                Domoticz.Log("Pre-2020.2 build found")
-                Revision = Parameters['DomoticzVersion'].split(".")[1]
+            Domoticz.Log("DomoticzVersion Available " + Parameters['DomoticzVersion'])
+            if int(Parameters['DomoticzVersion'].split(".")[0]) > 4:
+                Domoticz.Debug("Post-2020.2 build found")
+                # We don't worry about revisions post 2020
+                Revision = 9031
             else:
-                Domoticz.Log("Post-2020.2 build found")
-                Revision = Parameters['DomoticzVersion'].split("(build ")[1]
-                Revision = Revision.rstrip(')')
-
+                Domoticz.Debug("Pre-2020.2 build found")
+                Revision = Parameters['DomoticzVersion'].split(".")[1]
         Domoticz.Debug("Domoticz Revision: " + str(Revision))
         return Revision
 
