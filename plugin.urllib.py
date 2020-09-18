@@ -771,7 +771,19 @@ class BasePlugin:
         Revision = 0
         if 'DomoticzVersion' in Parameters:
             Domoticz.Log("DomoticzVersion Available " + Parameters['DomoticzVersion'])
-            Revision = Parameters['DomoticzVersion'].split(".")[1]
+
+            # New version numbering for 2020.2 builds - check and parse accordingly
+
+            Revision = Parameters['DomoticzVersion']
+
+            newBuild = Revision.find('2020.2')
+            if newBuild == -1:
+                Domoticz.Log("Pre-2020.2 build found")
+                Revision = Parameters['DomoticzVersion'].split(".")[1]
+            else:
+                Domoticz.Log("Post-2020.2 build found")
+                Revision = Parameters['DomoticzVersion'].split("(build ")[1]
+                Revision = Revision.rstrip(')')
         else:
             Domoticz.Log("DomoticzVersion Not Available - Using JSON")
             url = 'http://127.0.0.1:' + Parameters['Mode2'] + '/json.htm?type=command&param=getversion'
