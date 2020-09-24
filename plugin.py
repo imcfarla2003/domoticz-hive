@@ -109,7 +109,7 @@ class BasePlugin:
                 payload = {'sessions':[{'username':Parameters["Username"],'password':Parameters["Password"],'caller': 'WEB'}]}
                 url = '/omnia/auth/sessions'
                 data = json.dumps(payload).encode('ascii')
-                Domoticz.Debug(str(data))
+                #Domoticz.Debug(str(data))
                 Connection.Send({'Verb':'POST','URL':url,'Headers':self.headers,'Data':data})
         if (Connection.Name == 'Hive Devices'):
             Domoticz.Debug('Getting Devices')
@@ -147,6 +147,8 @@ class BasePlugin:
                     'X-Omnia-Access-Token': self.sessionId,
                     'Host':self.weatherHost}
                 self.deviceConn.Connect() # Update the devices now
+            else:
+                Domoticz.Error("Error Creating Session")
         if (Connection.Name == 'Hive Devices'):
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
@@ -155,6 +157,8 @@ class BasePlugin:
                 self.UpdateDeviceState(nodes)
             else:
                 # Bad session?
+                Domoticz.Debug("Error Getting Devices")
+                self.sessionId = ''
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
             # The return data from a device update will only contain the info for that device
@@ -183,7 +187,7 @@ class BasePlugin:
                         if Devices[unit].DeviceID == "Hive_Outside":
                             Devices[unit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
                             foundOutsideDevice = True
-                            Domoticz.Debug("Outside Device Updatedd")
+                            Domoticz.Debug("Outside Device Updated")
 
                     if foundOutsideDevice == False:
                         newUnit = self.GetNextUnit(False)
@@ -196,6 +200,8 @@ class BasePlugin:
                 except Exception as e:
                     Domoticz.Error(str(e))
                 Connection.Disconnect()
+            else:
+                Domoticz.Error("Error getting weather information")
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
