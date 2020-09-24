@@ -61,10 +61,7 @@ class BasePlugin:
         self.sessionHost = 'api.prod.bgchprod.info' 
         self.deviceHost = 'api.prod.bgchprod.info'
         self.weatherHost = 'weather.prod.bgchprod.info'
-        self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json', 
-            'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-            'X-AlertMe-Client': 'Hive Web Dashboard',
-            'Host':self.sessionHost}
+        self.headers = ''
         self.weatherHeaders = {}
         self.deviceUpdate = False
         self.updateCounter = 0
@@ -106,6 +103,10 @@ class BasePlugin:
         if (Connection.Name == 'Hive Session'):
             if self.sessionId == '':
                 Domoticz.Debug('Creating Session')
+                self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                    'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                    'X-AlertMe-Client': 'Hive Web Dashboard',
+                    'Host':self.sessionHost}
                 payload = {'sessions':[{'username':Parameters["Username"],'password':Parameters["Password"],'caller': 'WEB'}]}
                 url = '/omnia/auth/sessions'
                 data = json.dumps(payload).encode('ascii')
@@ -133,9 +134,9 @@ class BasePlugin:
         if (Connection.Name == 'Hive Session'):
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
+                #Domoticz.Debug(r)
                 self.sessionId = json.loads(r)["sessions"][0]['sessionId']
                 Domoticz.Debug(self.sessionId)
-                self.httpConn.Disconnect()
                 self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
                     'Accept': 'application/vnd.alertme.zoo-6.2+json',
                     'X-AlertMe-Client': 'Hive Web Dashboard', 
@@ -149,6 +150,14 @@ class BasePlugin:
                 self.deviceConn.Connect() # Update the devices now
             else:
                 Domoticz.Error("Error Creating Session")
+                #for key, value in Data.items() :
+                #    if isinstance(value,dict):
+                #        for key1, value1 in value.items() :
+                #            Domoticz.Debug(key + " - " + key1 + " - " + str(value1))
+                #    else:
+                #        Domoticz.Debug(key + " - " + str(value))
+                Domoticz.Debug(Data['Status'])
+            self.httpConn.Disconnect()
         if (Connection.Name == 'Hive Devices'):
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
@@ -156,8 +165,16 @@ class BasePlugin:
                 self.deviceConn.Disconnect()
                 self.UpdateDeviceState(nodes)
             else:
+                self.deviceConn.Disconnect()
                 # Bad session?
-                Domoticz.Debug("Error Getting Devices")
+                Domoticz.Error("Error Getting Devices - Recreating Session")
+                #self.httpConn.Connect()
+                #url = '/omnia/auth/sessions/' + self.sessionId
+                #self.httpConn.Send({'Verb':'DELETE','URL':url,'Headers':self.headers})
+                #self.httpConn.Disconnect()
+                #self.deviceConn.Disconnect()
+                #self.deviceUpdateConn.Disconnect()
+                #self.weatherConn.Disconnect()
                 self.sessionId = ''
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
@@ -199,9 +216,9 @@ class BasePlugin:
                         Devices[newUnit].Update(nValue=int(outsidetemp), sValue=str(outsidetemp))
                 except Exception as e:
                     Domoticz.Error(str(e))
-                Connection.Disconnect()
             else:
                 Domoticz.Error("Error getting weather information")
+            self.weatherConn.Disconnect()
 
     def onCommand(self, Unit, Command, Level, Hue):
         Domoticz.Debug('onCommand called for Unit ' + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
