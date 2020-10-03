@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.1" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.2" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -58,7 +58,7 @@ class BasePlugin:
         self.deviceConn = False
         self.deviceUpdateConn = False
         self.weatherConn = False
-        self.sessionHost = 'api.prod.bgchprod.info' 
+        self.sessionHost = 'beekeeper.hivehome.com' 
         self.deviceHost = 'api.prod.bgchprod.info'
         self.weatherHost = 'weather.prod.bgchprod.info'
         self.headers = ''
@@ -103,12 +103,11 @@ class BasePlugin:
         if (Connection.Name == 'Hive Session'):
             if self.sessionId == '':
                 Domoticz.Debug('Creating Session')
-                self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
-                    'Accept': 'application/vnd.alertme.zoo-6.2+json',
-                    'X-AlertMe-Client': 'Hive Web Dashboard',
-                    'Host':self.sessionHost}
-                payload = {'sessions':[{'username':Parameters["Username"],'password':Parameters["Password"],'caller': 'WEB'}]}
-                url = '/omnia/auth/sessions'
+                self.headers = {'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'Host':self.sessionHost}
+                payload = {'username':Parameters["Username"],'password':Parameters["Password"]}
+                url = '/1.0/cognito/login'
                 data = json.dumps(payload).encode('ascii')
                 #Domoticz.Debug(str(data))
                 Connection.Send({'Verb':'POST','URL':url,'Headers':self.headers,'Data':data})
@@ -134,8 +133,7 @@ class BasePlugin:
         if (Connection.Name == 'Hive Session'):
             if (Data['Status'] == '200'):
                 r = Data['Data'].decode('UTF-8')
-                #Domoticz.Debug(r)
-                self.sessionId = json.loads(r)["sessions"][0]['sessionId']
+                self.sessionId = json.loads(r)["token"]
                 Domoticz.Debug(self.sessionId)
                 self.headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
                     'Accept': 'application/vnd.alertme.zoo-6.2+json',
@@ -150,12 +148,6 @@ class BasePlugin:
                 self.deviceConn.Connect() # Update the devices now
             else:
                 Domoticz.Error("Error Creating Session")
-                #for key, value in Data.items() :
-                #    if isinstance(value,dict):
-                #        for key1, value1 in value.items() :
-                #            Domoticz.Debug(key + " - " + key1 + " - " + str(value1))
-                #    else:
-                #        Domoticz.Debug(key + " - " + str(value))
                 Domoticz.Debug(Data['Status'])
             self.httpConn.Disconnect()
         if (Connection.Name == 'Hive Devices'):
@@ -168,13 +160,6 @@ class BasePlugin:
                 self.deviceConn.Disconnect()
                 # Bad session?
                 Domoticz.Error("Error Getting Devices - Recreating Session")
-                #self.httpConn.Connect()
-                #url = '/omnia/auth/sessions/' + self.sessionId
-                #self.httpConn.Send({'Verb':'DELETE','URL':url,'Headers':self.headers})
-                #self.httpConn.Disconnect()
-                #self.deviceConn.Disconnect()
-                #self.deviceUpdateConn.Disconnect()
-                #self.weatherConn.Disconnect()
                 self.sessionId = ''
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
