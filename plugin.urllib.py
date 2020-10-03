@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.0-urllib" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="1.2-urllib" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -803,14 +803,14 @@ class BasePlugin:
         return Revision
 
     def GetSessionID(self):
-            payload = {'sessions':[{'username':Parameters["Username"], 'password':Parameters["Password"]}]}
-            headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json',
-                       'Accept': 'application/vnd.alertme.zoo-6.2+json',
-                       'X-AlertMe-Client': 'Hive Web Dashboard'}
-            url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions'
+            payload = {'username':Parameters["Username"], 'password':Parameters["Password"]
+            headers = {'Content-Type': 'application/json',
+                       'Accept': 'application/json'}
+            url = 'https://beekeeper.hivehome.com/1.0/cognito/login'
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             r = urlopen(req).read().decode('utf-8')
-            self.sessionId = json.loads(r)["sessions"][0]['sessionId']
+            Domoticz.Log(r)
+            self.sessionId = json.loads(r)['token']
 
     def GetWeatherURL(self):
             weather = False
