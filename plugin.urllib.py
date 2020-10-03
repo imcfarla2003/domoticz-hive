@@ -771,7 +771,7 @@ class BasePlugin:
         Revision = 0
         if 'DomoticzVersion' in Parameters:
             Domoticz.Log("DomoticzVersion Available " + Parameters['DomoticzVersion'])
-            if Parameters['DomoticzVersion'].split(".")[0] > 4:
+            if int(Parameters['DomoticzVersion'].split(".")[0]) > 4:
                 Domoticz.Debug("Post-2020.2 build found")
                 # We don't worry about revisions post 2020
                 Revision = 9031
