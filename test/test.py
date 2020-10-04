@@ -12,8 +12,8 @@ Parameters["Password"] = sys.argv[2]
 Parameters["Mode1"] = 1 #Multiplier
 Parameters["Mode2"] = '8080' #Port
 Parameters["Mode3"] = 'CB24' #Postcode
-#Parameters["Mode6"] = 'Debug' #Debug
-Parameters["Mode6"] = 'Normal' #No Debug
+Parameters["Mode6"] = '62' #Debug
+#Parameters["Mode6"] = 'Normal' #No Debug
 Parameters["DomoticzVersion"] = '4.10263' #Domoticz Version
 
 Devices = Domoticz.Devices

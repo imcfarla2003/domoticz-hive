@@ -803,7 +803,7 @@ class BasePlugin:
         return Revision
 
     def GetSessionID(self):
-            payload = {'username':Parameters["Username"], 'password':Parameters["Password"]
+            payload = {'username':Parameters["Username"], 'password':Parameters["Password"]}
             headers = {'Content-Type': 'application/json',
                        'Accept': 'application/json'}
             url = 'https://beekeeper.hivehome.com/1.0/cognito/login'
