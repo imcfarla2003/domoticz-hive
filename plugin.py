@@ -147,7 +147,7 @@ class BasePlugin:
                     'Host':self.weatherHost}
                 self.deviceConn.Connect() # Update the devices now
             else:
-                Domoticz.Error("Error Creating Session")
+                Domoticz.Log("Error Creating Session")
                 Domoticz.Debug(Data['Status'])
             self.httpConn.Disconnect()
         if (Connection.Name == 'Hive Devices'):
