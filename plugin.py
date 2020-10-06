@@ -159,7 +159,7 @@ class BasePlugin:
             else:
                 self.deviceConn.Disconnect()
                 # Bad session?
-                Domoticz.Error("Error Getting Devices - Recreating Session")
+                Domoticz.Log("Error Getting Devices - Recreating Session")
                 self.sessionId = ''
                 self.httpConn.Connect()
         if (Connection.Name == 'Hive Device Update'):
