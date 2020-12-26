@@ -42,6 +42,8 @@ try:
     from urllib.parse import urlencode
     from urllib.error import HTTPError
     import Domoticz
+    import boto3
+    from pycognito.aws_srp import AWSSRP
 except ImportError as L_err:
     print("ImportError: {0}".format(L_err))
     raise L_err
@@ -58,6 +60,10 @@ class BasePlugin:
         self.hwrelaySet = set()
         self.chrelaySet = set()
         self.TimedOutAvailable = False
+        self.RefreshToken = ''
+        self.AccessToken = ''
+        self.Honeycomb = ''
+        self.Collect = 0
     
     def onStart(self):
         Domoticz.Log('Starting')
@@ -80,6 +86,15 @@ class BasePlugin:
         self.counter = self.multiplier # update immediately
         if self.sessionId == '':
             Domoticz.Log('Creating Session')
+            region='eu-west-1'
+            user_pool_id='eu-west-1_SamNfoWtf'
+            client_id='3rl4i0ajrmtdm8sbre54p9dvd9'
+            client = boto3.client('cognito-idp', region_name=region)
+            aws = AWSSRP(username=Parameters["Username"], password=Parameters["Password"], pool_id=user_pool_id,client_id=client_id, client=client)
+            tokens = aws.authenticate_user()
+            self.sessionId = tokens['AuthenticationResult']['IdToken']
+            self.RefreshToken = tokens['AuthenticationResult']['RefreshToken']
+            self.AccessToken = tokens['AuthenticationResult']['AccessToken']
             self.GetSessionID()
         Domoticz.Debug(self.sessionId)
         self.onHeartbeat()
@@ -90,7 +105,7 @@ class BasePlugin:
                    'Accept': 'application/vnd.alertme.zoo-6.2+json', 
                    'X-AlertMe-Client': 'Hive Web Dashboard', 
                    'X-Omnia-Access-Token': self.sessionId }
-        url = 'https://api.prod.bgchprod.info:443/omnia/auth/sessions/' + self.sessionId
+        url = self.Honeycomb + '/omnia/auth/sessions/' + self.sessionId
         req = Request(url, headers = headers)
         req.get_method = lambda : 'DELETE'
         try:
@@ -163,7 +178,7 @@ class BasePlugin:
                        'Accept': 'application/vnd.alertme.zoo-6.2+json', 
                        'X-AlertMe-Client': 'swagger', 
                        'X-Omnia-Access-Token': self.sessionId}
-            url = 'https://api.prod.bgchprod.info:443/omnia/nodes/' + Devices[Unit].DeviceID
+            url = self.Honeycomb + '/omnia/nodes/' + Devices[Unit].DeviceID
             req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
             req.get_method = lambda : 'PUT'
             try:
@@ -188,6 +203,10 @@ class BasePlugin:
             Domoticz.Debug('Getting Data')
             self.counter = 1
             d = self.GetDevices()
+            if self.Collect == 1:
+                self.nodes = d
+                # quit now as we are just collecting the data
+                exit
             self.UpdateDeviceState(d)
             if Parameters["Mode3"] != "":   #if postcode parameter set for Hive outside temp then....
                 foundOutsideDevice = False
@@ -465,8 +484,11 @@ class BasePlugin:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
                         else:
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
+                            if "state" not in node["attributes"]:
+                                node["attributes"]["state"] = {}
+                                node["attributes"]["state"]["targetValue"] = "OFF"
                             if "targetValue" not in node["attributes"]["state"]:
-                                node["attributes"]["state"]["targetValue"] == node["attributes"]["state"]["reportedValue"]
+                                node["attributes"]["state"]["targetValue"] = node["attributes"]["state"]["reportedValue"]
                             Domoticz.Debug("State: " + Devices[unit].sValue + " -> " + node["attributes"]["state"]["targetValue"])
                             if node["attributes"]["state"]["targetValue"] == "OFF":
                                 if Devices[unit].nValue != 0: # Device not already off
@@ -803,14 +825,25 @@ class BasePlugin:
         return Revision
 
     def GetSessionID(self):
-            payload = {'username':Parameters["Username"], 'password':Parameters["Password"]}
-            headers = {'Content-Type': 'application/json',
-                       'Accept': 'application/json'}
-            url = 'https://beekeeper.hivehome.com/1.0/cognito/login'
-            req = Request(url, data = json.dumps(payload).encode('ascii'), headers = headers, unverifiable = True)
-            r = urlopen(req).read().decode('utf-8')
-            Domoticz.Log(r)
-            self.sessionId = json.loads(r)['token']
+            Domoticz.Debug("Attempting token refresh using : " + self.sessionId)
+            payload = {'token':self.sessionId,'refreshToken':self.RefreshToken,'accessToken':self.AccessToken}
+            url = 'https://beekeeper-uk.hivehome.com/1.0/cognito/refresh-token'
+            req = Request(url, data = json.dumps(payload).encode('ascii'), unverifiable = True)
+            req.add_header('Content-Type', 'application/json')
+            req = urlopen(req)
+            status_code = req.getcode()
+
+            if status_code == 200:
+                Domoticz.Debug("Hive Login Successful: Status code " + str(status_code))
+                r = json.loads(req.read().decode('utf-8'))
+                self.sessionId = r["token"]
+                self.AccessToken = r["accessToken"]
+                self.RefreshToken = r['refreshToken']
+                self.Honeycomb = r['platform']['honeycomb']
+                Domoticz.Debug("New token: " + self.sessionId)
+            else:
+                self.sessionId = ''
+                Domoticz.Log("Hive Login Failed: Status code " + str(status_code))
 
     def GetWeatherURL(self):
             weather = False
@@ -842,7 +875,7 @@ class BasePlugin:
                        'Accept': 'application/vnd.alertme.zoo-6.2+json',
                        'X-AlertMe-Client': 'swagger',
                        'X-Omnia-Access-Token': self.sessionId}
-            url = 'https://api.prod.bgchprod.info:443/omnia/nodes'
+            url = self.Honeycomb + '/omnia/nodes'
             req = Request(url, headers = headers, unverifiable = True)
             try:
                 r = urlopen(req).read().decode('utf-8')
