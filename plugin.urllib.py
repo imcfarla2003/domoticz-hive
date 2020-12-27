@@ -484,13 +484,8 @@ class BasePlugin:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
                         else:
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
-                            if "state" not in node["attributes"]:
-                                node["attributes"]["state"] = {}
-                                node["attributes"]["state"]["targetValue"] = "OFF"
-                            if "targetValue" not in node["attributes"]["state"]:
-                                node["attributes"]["state"]["targetValue"] = node["attributes"]["state"]["reportedValue"]
-                            Domoticz.Debug("State: " + Devices[unit].sValue + " -> " + node["attributes"]["state"]["targetValue"])
-                            if node["attributes"]["state"]["targetValue"] == "OFF":
+                            if ("targetValue" in node["attributes"]["state"] and node["attributes"]["state"]["targetValue"] == "OFF") or \
+                               ("targetValue" not in node["attributes"]["state"] and node["attributes"]["state"]["reportedValue"] == "OFF"):
                                 if Devices[unit].nValue != 0: # Device not already off
                                     if self.TimedOutAvailable:
                                         Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
@@ -501,6 +496,8 @@ class BasePlugin:
                                         if Devices[unit].TimedOut:
                                             Devices[unit].Update(nValue=0, sValue='Off', TimedOut=0, SignalLevel=int(rssi))
                             else:
+                                if "targetValue" not in node["attributes"]["brightness"]:
+                                    node["attributes"]["brightness"]["targetValue"] = node["attributes"]["brightness"]["reportedValue"]
                                 Domoticz.Debug("Brightness Target: " + str(Devices[unit].LastLevel))
                                 Domoticz.Debug("Brightness: " + str(node["attributes"]["brightness"]["targetValue"]))
                                 if Devices[unit].LastLevel != int(node["attributes"]["brightness"]["targetValue"]) or Devices[unit].sValue == 'Off':
