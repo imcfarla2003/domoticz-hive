@@ -473,6 +473,10 @@ class BasePlugin:
                                 Domoticz.Log("Device Offline : " + Devices[unit].Name)
                         else:
                             # Work on targetValues (allows to update devices on the return of an update posted but not yet executed)
+                            if "state" not in node["attributes"]:
+                                node["attributes"]["state"] = {}
+                                node["attributes"]["state"]["targetValue"] = "OFF"
+                                node["attributes"]["state"]["reportedValue"] = "OFF"
                             if ("targetValue" in node["attributes"]["state"] and node["attributes"]["state"]["targetValue"] == "OFF") or \
                                ("targetValue" not in node["attributes"]["state"] and node["attributes"]["state"]["reportedValue"] == "OFF"):
                                 if Devices[unit].nValue != 0: # Device not already off
