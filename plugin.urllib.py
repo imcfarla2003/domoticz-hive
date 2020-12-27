@@ -100,18 +100,7 @@ class BasePlugin:
         self.onHeartbeat()
 
     def onStop(self):
-        Domoticz.Log('Deleting Session')
-        headers = {'Content-Type': 'application/vnd.alertme.zoo-6.1+json', 
-                   'Accept': 'application/vnd.alertme.zoo-6.2+json', 
-                   'X-AlertMe-Client': 'Hive Web Dashboard', 
-                   'X-Omnia-Access-Token': self.sessionId }
-        url = self.Honeycomb + '/omnia/auth/sessions/' + self.sessionId
-        req = Request(url, headers = headers)
-        req.get_method = lambda : 'DELETE'
-        try:
-            r = urlopen(req).read()
-        except Exception as e:
-            Domoticz.Log(str(e))
+        Domoticz.Log('onStop Called')
     
     def onConnect(self, Connection, Status, Description):
         Domoticz.Debug('onConnect called')
