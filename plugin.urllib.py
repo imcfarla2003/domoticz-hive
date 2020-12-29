@@ -1,5 +1,5 @@
 '''
-<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="2-urllib" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
+<plugin key="HivePlug" name="Hive Plugin" author="imcfarla, MikeF and roadsnail" version="2.1-urllib" wikilink="http://www.domoticz.com/wiki/plugins" externallink="https://github.com/imcfarla2003/domoticz-hive">
     <description>
         <h2>Hive Plugin</h2>
         <h3>Features</h3>
@@ -873,6 +873,11 @@ class BasePlugin:
                 if e.code == 401: # Unauthorised - need new sessionId
                     self.onStop()
                     self.GetSessionID()
+                    headers = {'Content-Type': 'application/vnd.alertme.zoo-6.2+json',
+                               'Accept': 'application/vnd.alertme.zoo-6.2+json',
+                               'X-AlertMe-Client': 'swagger',
+                               'X-Omnia-Access-Token': self.sessionId}
+                    req = Request(url, headers = headers, unverifiable = True)
                     r = urlopen(req).read().decode('utf-8')
                 else:
                     Domoticz.Log(str(e))
